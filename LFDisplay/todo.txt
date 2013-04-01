@@ -1,0 +1,38 @@
+* Put up a small text box in the lenslet tab telling people to 
+  mouse over and use mouse wheel to change values, holding down
+  ctrl to make things go faster
+
+* Maybe put a suggested calibration procedure, or a popup button to show
+  it, make sure to talk about how to interact with the image view as
+  well (how to zoom in, etc.)
+* Tooltips for the buttons would be nice
+
+* Custom aperture slider -> effective aperture
+* Put NA beside 100%
+
+Instant intensity adjustment should go in qimaging settings thing
+try actual automatic gain(/offset?)
+
+* Be nice to have keyboard actions over the twin slider
+
+* Make sure epsilon doesn't show up on focus slider
+
+* Add numbers onto the thick slider
+
+* Don't make the fine slider so thin
+
+* Explain what +z means
+
+* Add an extra pause button
+
+* Something added to output window -> scroll down
+
+Quantitative input for gain, offset, etc.
+
+* Ask todd, start sequence at 0 or 1? - Todd said there's no consensus,
+  but the younger students and he and logan like 0, plus time starts at 0
+
+* But with frame limit in recording
+
+
+ 
