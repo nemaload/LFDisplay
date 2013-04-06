@@ -64,6 +64,7 @@ def _load_frames(filepath, max_frames=0):
             cur_frame.stringBuffer = arr.tostring()
             cur_frame.width, cur_frame.height = width, height
             cur_frame.bits = 16
+            cur_frame.channels = channels
             cur_frame.intensity = 1.0
             frame_list.append(cur_frame)
         f.close()
@@ -95,12 +96,14 @@ def _load_frames(filepath, max_frames=0):
             cur_frame.width, cur_frame.height = width, height
             cur_frame.formatString = 'mono8'
             cur_frame.bits = 8
+            cur_frame.channels = 1
         elif imagetype == _FreeImage.FIT_UINT16:
             # Monochrome 16-bit data
             cur_frame.stringBuffer = data
             cur_frame.width, cur_frame.height = width, height
             cur_frame.formatString = 'mono16'
             cur_frame.bits = 16
+            cur_frame.channels = 1
         elif imagetype == _FreeImage.FIT_BITMAP and bpp == 24:
             # Color 8-bit-per-channel data
             cur_frame.stringBuffer = data
@@ -112,6 +115,7 @@ def _load_frames(filepath, max_frames=0):
             else:
                 cur_frame.formatString = 'bgr24'
             cur_frame.bits = 8
+            cur_frame.channels = 3
         elif imagetype == _FreeImage.FIT_BITMAP and bpp == 32:
             # Color 8-bit-per-channel data plus alpha
             cur_frame.stringBuffer = data
@@ -123,18 +127,21 @@ def _load_frames(filepath, max_frames=0):
             else:
                 cur_frame.formatString = 'bgra32'
             cur_frame.bits = 8
+            cur_frame.channels = 4
         elif imagetype == _FreeImage.FIT_RGB16:
             # Color 16-bit-per-channel data
             cur_frame.stringBuffer = data
             cur_frame.width, cur_frame.height = width, height
             cur_frame.formatString = 'rgb48'
             cur_frame.bits = 16
+            cur_frame.channels = 3
         elif imagetype == _FreeImage.FIT_RGBA16:
             # Color+alpha 16-bit-per-channel data
             cur_frame.stringBuffer = data
             cur_frame.width, cur_frame.height = width, height
             cur_frame.formatString = 'rgba64'
             cur_frame.bits = 16
+            cur_frame.channels = 4
         else:
             print imagetype, bpp, colortype, width, height
             raise Error('Unsupported image mode')
