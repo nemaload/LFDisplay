@@ -21,7 +21,7 @@ import _FreeImage
 class Error(Exception):
     pass
 
-class DummyFrame:
+class InputFrame:
     pass
 
 def _load_frames(filepath, max_frames=0):
@@ -59,7 +59,7 @@ def _load_frames(filepath, max_frames=0):
             # convert to 16bit
             arr = (65536*arr).astype('uint16')
             # make the frame
-            cur_frame = DummyFrame()
+            cur_frame = InputFrame()
             cur_frame.formatString = formatString
             cur_frame.stringBuffer = arr.tostring()
             cur_frame.width, cur_frame.height = width, height
@@ -69,7 +69,7 @@ def _load_frames(filepath, max_frames=0):
             frame_list.append(cur_frame)
         f.close()
     else: # try using FreeImagePy
-        cur_frame = DummyFrame()
+        cur_frame = InputFrame()
         # determine the filetype of the file
         fif = _FreeImage.GetFileType(filepath)
         if fif == _FreeImage.FIF_UNKNOWN:
