@@ -1,3 +1,4 @@
+#!/usr/bin/python
 """
 Main application for LFDisplay
 """
