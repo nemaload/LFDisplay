@@ -10,6 +10,7 @@ import struct
 import threading
 import thread
 import time
+import struct
 import sys
 
 import gui
@@ -22,7 +23,28 @@ class Error(Exception):
     pass
 
 class InputFrame:
-    pass
+    """
+    This class is a container holding an input image frame.
+    It is associated with attributes
+
+    width, height - frame dimensions
+    bits - number of bits per channel
+    channels - number of channels per pixel
+    formatString - an alternate per-pixel channel description
+        (describing also channel order)
+    stringBuffer - binary image data listing the pixels
+    intensity - image intensity
+    """
+    def pixel_at(self, x, y):
+        """
+        Return an array of channels associated with a given pixel.
+        Raises IndexError on out-of-bounds coordinates.
+        """
+        if x < 0 or x >= self.width or y < 0 or y >= self.height:
+            raise IndexError
+        bytesperpixel = self.bits / 8 * self.channels
+        pixeli = self.width * y + x
+        return struct.unpack((">%dB" % bytesperpixel), self.stringBuffer[pixeli * bytesperpixel : (pixeli + 1) * bytesperpixel])
 
 def _load_frames(filepath, max_frames=0):
     """
