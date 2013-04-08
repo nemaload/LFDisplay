@@ -35,6 +35,7 @@ class InputFrame:
     stringBuffer - binary image data listing the pixels
     intensity - image intensity
     """
+
     def pixel_at(self, x, y):
         """
         Return an array of channels associated with a given pixel.
@@ -45,6 +46,14 @@ class InputFrame:
         bytesperpixel = self.bits / 8 * self.channels
         pixeli = self.width * y + x
         return struct.unpack((">%dB" % bytesperpixel), self.stringBuffer[pixeli * bytesperpixel : (pixeli + 1) * bytesperpixel])
+
+    def to_numpy_array(self):
+        """
+        Return a numpy array with an element per pixel.
+        """
+        array = numpy.fromstring(self.stringBuffer, dtype=(numpy.uint16 if self.bits == 16 else numpy.uint8))
+        array.shape = (self.height, self.width, self.channels)
+        return array
 
 def _load_frames(filepath, max_frames=0):
     """
