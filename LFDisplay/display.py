@@ -15,6 +15,7 @@ import sys
 import os
 
 import aperture
+import autorectify
 import gui
 
 class Error(Exception):
@@ -1470,6 +1471,7 @@ class ImagingDisplay(QtOpenGL.QGLWidget):
         bits = frame.bits
         intensity = frame.intensity
         # done with frame
+        self.last_frame = frame
         self.outQueue.put(frame)
         self.emit(QtCore.SIGNAL('frameDone()'))
         # set the new texture
@@ -2180,6 +2182,8 @@ class LensletSettings(QtGui.QWidget):
         self.rotate180Button.setToolTip('Change the lenslet parameters so that they correspond to a 180-degree rotated image')
         self.showLensletsButton = QtGui.QPushButton('S&how rectification')
         self.showLensletsButton.setToolTip("Display the raw light field image as well as lenslet grid for rectification")
+        self.autoButton = QtGui.QPushButton('&Auto')
+        self.autoButton.setToolTip('Autorectify')
 
         self.shiftCenterButton = QtGui.QPushButton('Sh&ift center')
         self.shiftCenterButton.setToolTip("Shift the center lenslet position to as close to the center of the image as possible while still retaining the same grid")
@@ -2202,6 +2206,7 @@ class LensletSettings(QtGui.QWidget):
         self.buttonLayout.addWidget(self.resetButton,3,1)
         self.buttonLayout.addWidget(self.shiftCenterButton,3,2)
         self.buttonLayout.addWidget(self.showLensletsButton,4,0)
+        self.buttonLayout.addWidget(self.autoButton,4,1)
         self.buttonLayout.setColumnStretch(3,1)
         self.buttonLayout.setRowStretch(5,1)
         self.buttonGroup.setLayout(self.buttonLayout)
@@ -2264,6 +2269,9 @@ class LensletSettings(QtGui.QWidget):
         self.connect(self.recenterButton,
                      QtCore.SIGNAL('clicked(bool)'),
                      self.recenter)
+        self.connect(self.autoButton,
+                     QtCore.SIGNAL('clicked(bool)'),
+                     self.autorectify)
         self.connect(self.resetButton,
                      QtCore.SIGNAL('clicked(bool)'),
                      self.reset)
@@ -2511,6 +2519,13 @@ class LensletSettings(QtGui.QWidget):
         textureSize = self.displayWindow.textureSize
         self.displayWindow.setGrid(lensletOffset=((textureSize[0]-1)*0.5,
                                                   (textureSize[1]-1)*0.5))
+        self.updateFromParent()
+
+    def autorectify(self):
+        "Automatically set the rectification"
+        maxu = self.displayWindow.maxNormalizedSlope()
+        (lensletOffset, lensletHoriz, lensletVert) = autorectify.autorectify(self.displayWindow.last_frame, maxu)
+        self.displayWindow.setGrid(lensletOffset=lensletOffset, lensletHoriz=lensletHoriz, lensletVert=lensletVert)
         self.updateFromParent()
 
     def offsetChanged(self):
