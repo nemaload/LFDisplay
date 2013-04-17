@@ -86,6 +86,7 @@ def autorectify_de(frame, maxu):
             co_k = numpy.random.randint(dim_k);
             for k in range(dim_k):
                 if k == co_k or random.random() < CR:
+                    #print " DE " + str(r1a[k]) + " " + str(r2a[k]) + " " + str(r3a[k])
                     sa[k] = r1a[k] + F * (r2a[k] - r3a[k])
 
             # Compare and swap if better
@@ -178,6 +179,7 @@ class RectifyParams:
 
     framesize[2] (size of the frame; constant)
     size[2] (size of a single lenslet, i.e. the lens grid spacing)
+            (but what is evolved is single dimension and aspect ratio)
     offset[2] (shift of the lens grid center relative to image center)
             offset \in [-size/2, +size/2] after normalize()
     tau (tilt of the lens grid, i.e. rotation (CCW) by grid center in radians)
@@ -196,7 +198,9 @@ class RectifyParams:
         """
         # XXX: Something better than uniformly random?
         maxsize = 64
-        self.size = numpy.array([random.random(), random.random()]) * maxsize
+        self.size = numpy.array([0, 0])
+        self.size[0] = random.random() * maxsize
+        self.size[1] = self.size[0] * (0.8 + random.random() * 0.4)
         self.offset = numpy.array([random.random(), random.random()]) * self.size - self.size/2
         self.tau = random.random() * math.pi/8
         return self
@@ -243,7 +247,7 @@ class RectifyParams:
         elif self.size[0] < minsize:
             self.size[0] = minsize
         if self.size[1] > maxsize:
-            self.size[1] = random.random() * maxsize
+            self.size[1] = self.size[0] * (0.8 + random.random() * 0.4)
         elif self.size[1] < minsize:
             self.size[1] = minsize
 
@@ -266,14 +270,18 @@ class RectifyParams:
         Convert parameters to an array of values to be opaque
         for optimization algorithm; after optimization pass,
         call from_array to propagate the values back.
+
+        One significant difference between RectifyParams attributes
+        and the optimized values is that size is represented not
+        as an [x,y] pair but rather [x,aspectratio] pair.
         """
-        return numpy.array([self.size[0], self.size[1], self.offset[0], self.offset[1], self.tau])
+        return numpy.array([self.size[0], float(self.size[1]) / self.size[0], self.offset[0], self.offset[1], self.tau])
 
     def from_array(self, a):
         """
         Restore parameters from the array serialization.
         """
-        self.size[0] = a[0]; self.size[1] = a[1]
+        self.size[0] = a[0]; self.size[1] = int(a[1] * self.size[0])
         self.offset[0] = a[2]; self.offset[1] = a[3]
         self.tau = a[4]
         return self
