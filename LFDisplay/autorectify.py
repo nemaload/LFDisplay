@@ -232,6 +232,21 @@ class RectifyParams:
         one lens size (i.e. 0 +- size/2) and tau is less than pi/8.
         """
         self.size = abs(self.size)
+
+        # For <minsize we trim to minsize, but for >maxsize we
+        # reset randomly so that our specimen do not cluster
+        # around maxsize aimlessly.
+        minsize = 5
+        maxsize = 64
+        if self.size[0] > maxsize:
+            self.size[0] = random.random() * maxsize
+        elif self.size[0] < minsize:
+            self.size[0] = minsize
+        if self.size[1] > maxsize:
+            self.size[1] = random.random() * maxsize
+        elif self.size[1] < minsize:
+            self.size[1] = minsize
+
         self.offset = self.offset % self.size - self.size/2
         self.tau = self.tau % (math.pi/8)
         return self
