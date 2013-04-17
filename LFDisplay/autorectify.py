@@ -181,7 +181,7 @@ class RectifyParams:
     offset[2] (shift of the lens grid center relative to image center)
             offset \in [-size/2, +size/2] after normalize()
     tau (tilt of the lens grid, i.e. rotation (CCW) by grid center in radians)
-            tau \in [0, pi/4) after normalize()
+            tau \in [0, pi/8) after normalize()
 
     (...[2] are numpy arrays)
     """
@@ -198,7 +198,7 @@ class RectifyParams:
         maxsize = 64
         self.size = numpy.array([random.random(), random.random()]) * maxsize
         self.offset = numpy.array([random.random(), random.random()]) * self.size - self.size/2
-        self.tau = random.random() * math.pi/4
+        self.tau = random.random() * math.pi/8
         return self
 
     def gridsize(self):
@@ -229,11 +229,11 @@ class RectifyParams:
     def normalize(self):
         """
         Normalize parameters so that the offset is by less than
-        one lens size (i.e. 0 +- size/2) and tau is less than pi/4.
+        one lens size (i.e. 0 +- size/2) and tau is less than pi/8.
         """
         self.size = abs(self.size)
         self.offset = self.offset % self.size - self.size/2
-        self.tau = self.tau % (math.pi/4)
+        self.tau = self.tau % (math.pi/8)
         return self
 
     def to_steps(self):
