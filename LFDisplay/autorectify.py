@@ -171,8 +171,7 @@ def measure_rectification_one(image, maxu, rparams, gridpos):
 
     # Just avoid division by zero
     eps = numpy.finfo(numpy.float).eps
-    # TODO: Try without log() too
-    return math.log((value_inlens + eps) / (value_outlens + eps))
+    return (value_inlens + eps) / (value_outlens + eps)
 
 
 class RectifyParams:
