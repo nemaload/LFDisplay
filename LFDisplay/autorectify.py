@@ -200,7 +200,7 @@ class RectifyParams:
         (that would pass normalize() inact).
         """
         # XXX: Something better than uniformly random?
-        self.size = numpy.array([0, 0])
+        self.size = numpy.array([0., 0.])
         self.size[0] = self.minsize + random.random() * (self.maxsize - self.minsize)
         self.size[1] = self.size[0] * (0.8 + random.random() * 0.4)
         self.offset = numpy.array([random.random(), random.random()]) * self.size - self.size/2
@@ -281,7 +281,7 @@ class RectifyParams:
         """
         Restore parameters from the array serialization.
         """
-        self.size[0] = a[0]; self.size[1] = int(a[1] * self.size[0])
+        self.size[0] = a[0]; self.size[1] = a[1] * self.size[0]
         self.offset[0] = a[2]; self.offset[1] = a[3]
         self.tau = a[4]
         return self
