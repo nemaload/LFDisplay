@@ -64,7 +64,7 @@ def autorectify_de(frame, maxu):
     # Improve the solutions
     episodes_n = 50
     for e in range(episodes_n):
-        print "episode ", e
+        print "EPISODE ", e
         # We iterate through the solutions in a random order; this
         # allows us to reuse the same array to obtain recombination
         # solutions randomly and safely.
@@ -95,13 +95,15 @@ def autorectify_de(frame, maxu):
             value_new = measure_rectification(image, maxu, s2)
             print "  new value ", value_new
             if value_new > value_old:
+                print "   ...better than before"
                 solutions[si] = s2
                 if value_new > value_best:
+                    print "   ...and best so far!"
                     sbest = s2
                     value_best = value_new
 
     # Return the best solution encountered
-    print "best is ", sbest
+    print "best is ", sbest, " with value ", value_best
     return sbest
 
 
@@ -161,10 +163,11 @@ def measure_rectification_one(image, maxu, rparams, gridpos):
 
             # Are we in the ellipsis defined by lenssize?
             if ((inLensPos / lenssize) ** 2).sum() <= 1.:
+                # print " IN LENS pixval ", pixval, " for ", lenspos, " -> ", imgpos
                 value_inlens += pixval
             else:
+                # print "OUT LENS pixval ", pixval, " for ", lenspos, " -> ", imgpos
                 value_outlens += pixval
-            # print "pixval ", pixval, " for ", lenspos, " -> ", imgpos
 
     # Just avoid division by zero
     eps = numpy.finfo(numpy.float).eps
