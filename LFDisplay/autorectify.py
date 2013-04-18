@@ -191,6 +191,8 @@ class RectifyParams:
 
     def __init__(self, framesize):
         self.framesize = numpy.array(framesize)
+        self.minsize = 5
+        self.maxsize = 64
 
     def randomize(self):
         """
@@ -198,10 +200,8 @@ class RectifyParams:
         (that would pass normalize() inact).
         """
         # XXX: Something better than uniformly random?
-        minsize = 5
-        maxsize = 64
         self.size = numpy.array([0, 0])
-        self.size[0] = minsize + random.random() * (maxsize - minsize)
+        self.size[0] = self.minsize + random.random() * (self.maxsize - self.minsize)
         self.size[1] = self.size[0] * (0.8 + random.random() * 0.4)
         self.offset = numpy.array([random.random(), random.random()]) * self.size - self.size/2
         self.tau = random.random() * math.pi/8
@@ -242,16 +242,14 @@ class RectifyParams:
         # For <minsize we trim to minsize, but for >maxsize we
         # reset randomly so that our specimen do not cluster
         # around maxsize aimlessly.
-        minsize = 5
-        maxsize = 64
-        if self.size[0] > maxsize:
-            self.size[0] = minsize + random.random() * (maxsize - minsize)
-        elif self.size[0] < minsize:
-            self.size[0] = minsize
-        if self.size[1] > maxsize:
+        if self.size[0] > self.maxsize:
+            self.size[0] = self.minsize + random.random() * (self.maxsize - self.minsize)
+        elif self.size[0] < self.minsize:
+            self.size[0] = self.minsize
+        if self.size[1] > self.maxsize:
             self.size[1] = self.size[0] * (0.8 + random.random() * 0.4)
-        elif self.size[1] < minsize:
-            self.size[1] = minsize
+        elif self.size[1] < self.minsize:
+            self.size[1] = self.minsize
 
         self.offset = self.offset % self.size - self.size/2
         self.tau = self.tau % (math.pi/8)
