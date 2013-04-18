@@ -191,8 +191,8 @@ class RectifyParams:
 
     def __init__(self, framesize):
         self.framesize = numpy.array(framesize)
-        self.minsize = 5
-        self.maxsize = 64
+        self.minsize = 12
+        self.maxsize = 30
 
     def randomize(self):
         """
