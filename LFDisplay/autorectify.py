@@ -34,6 +34,10 @@ import math
 import numpy
 import random
 
+
+MAX_RADIUS = 30
+
+
 def autorectify(frame, maxu):
     """
     Automatically detect lenslets in the given frame with the
@@ -194,7 +198,7 @@ class RectifyParams:
     def __init__(self, framesize):
         self.framesize = numpy.array(framesize)
         self.minsize = 12
-        self.maxsize = 30
+        self.maxsize = MAX_RADIUS
 
     def randomize(self):
         """
