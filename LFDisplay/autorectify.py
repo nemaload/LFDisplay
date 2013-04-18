@@ -180,6 +180,7 @@ class RectifyParams:
     framesize[2] (size of the frame; constant)
     size[2] (size of a single lenslet, i.e. the lens grid spacing)
             (but what is evolved is single dimension and aspect ratio)
+            size \in [5, 64] after normalize()
     offset[2] (shift of the lens grid center relative to image center)
             offset \in [-size/2, +size/2] after normalize()
     tau (tilt of the lens grid, i.e. rotation (CCW) by grid center in radians)
@@ -197,9 +198,10 @@ class RectifyParams:
         (that would pass normalize() inact).
         """
         # XXX: Something better than uniformly random?
+        minsize = 5
         maxsize = 64
         self.size = numpy.array([0, 0])
-        self.size[0] = random.random() * maxsize
+        self.size[0] = minsize + random.random() * (maxsize - minsize)
         self.size[1] = self.size[0] * (0.8 + random.random() * 0.4)
         self.offset = numpy.array([random.random(), random.random()]) * self.size - self.size/2
         self.tau = random.random() * math.pi/8
@@ -243,7 +245,7 @@ class RectifyParams:
         minsize = 5
         maxsize = 64
         if self.size[0] > maxsize:
-            self.size[0] = random.random() * maxsize
+            self.size[0] = minsize + random.random() * (maxsize - minsize)
         elif self.size[0] < minsize:
             self.size[0] = minsize
         if self.size[1] > maxsize:
