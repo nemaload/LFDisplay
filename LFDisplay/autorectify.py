@@ -59,11 +59,13 @@ def autorectify_de(frame, maxu):
                      for i in range(solutions_n)]
 
     image = frame.to_numpy_array()
+    tiling = ImageTiling(image, MAX_RADIUS * 5)
+    tiling.scan_brightness()
 
     print "best..."
     # Initialize the best solution info by something random
     sbest = solutions[0]
-    value_best = measure_rectification(image, maxu, sbest)
+    value_best = measure_rectification(image, tiling, maxu, sbest)
 
     # Improve the solutions
     episodes_n = 50
@@ -76,7 +78,7 @@ def autorectify_de(frame, maxu):
         for si in permutation:
             print " solution ", si
             s = solutions[si]
-            value_old = measure_rectification(image, maxu, s)
+            value_old = measure_rectification(image, tiling, maxu, s)
             print "  value ", value_old
 
             # Cross-over with recombination solutions
@@ -96,7 +98,7 @@ def autorectify_de(frame, maxu):
             # Compare and swap if better
             s2 = s
             s2.from_array(sa).normalize()
-            value_new = measure_rectification(image, maxu, s2)
+            value_new = measure_rectification(image, tiling, maxu, s2)
             print "  new value ", value_new
             if value_new > value_old:
                 print "   ...better than before"
@@ -111,20 +113,21 @@ def autorectify_de(frame, maxu):
     return sbest
 
 
-def measure_rectification(image, maxu, rparams):
+def measure_rectification(image, tiling, maxu, rparams):
     """
     Measure rectification quality of rparams on a random sample of lens.
     """
     gridsize = rparams.gridsize()
-    n_samples = 10 + round(gridsize[0] * gridsize[1] / 400)
+    n_samples = int(10 + round(gridsize[0] * gridsize[1] / 400))
     print "  measuring ", rparams, " with grid ", gridsize, " and " ,n_samples ," samples"
 
-    x_coords = numpy.random.randint(int(round(-gridsize[0]/2)), int(round(gridsize[0]/2)), size = n_samples)
-    y_coords = numpy.random.randint(int(round(-gridsize[1]/2)), int(round(gridsize[1]/2)), size = n_samples)
-    samples = numpy.array([x_coords, y_coords]).T # transpose is like zip!
-
     value = 0.
-    for s in samples:
+
+    # TODO: Draw all samples at once
+    for i in range(0, n_samples):
+        t = tiling.random_tile()
+        s = tiling.tile_to_lens(t, rparams)
+        # print "tile ", t, "lens ", s
         value += measure_rectification_one(image, maxu, rparams, s)
 
     return value / n_samples
@@ -244,6 +247,15 @@ class RectifyParams:
         # print "xylens(", gc, ") ", self.framesize, " / 2 = ", self.framesize / 2, " -> ", center_pos, " ... + ", straight_pos, " T", self.tau, " ", tilted_pos, " => ", center_pos + tilted_pos
         return center_pos + tilted_pos
 
+    def lensxy(self, ic):
+        """
+        Return lens grid coordinates corresponding to given image coordinates.
+        """
+        center_pos = self.framesize / 2 + self.offset
+        tilted_pos = ic - center_pos
+        straight_pos = self.xytilted_tau(tilted_pos, -self.tau)
+        return (straight_pos / self.size).astype(int)
+
     def normalize(self):
         """
         Normalize parameters so that the offset is by less than
@@ -300,3 +312,85 @@ class RectifyParams:
 
     def __str__(self):
         return "[size " + str(self.size) + " offset " + str(self.offset) + " tau " + str(self.tau * 180 / math.pi) + "deg]"
+
+
+class ImageTiling:
+    """
+    This class represents a certain tiling of the image (numpy 3D array)
+    used for brightness data collection and sampling.
+    """
+
+    def __init__(self, image, tile_step):
+        self.tile_step = tile_step
+        self.height_t = int(image.shape[0] / tile_step)
+        self.width_t = int(image.shape[1] / tile_step)
+
+        # Adjust image view to be cropped on tile boundary
+        self.height = self.height_t * tile_step
+        self.width = self.width_t * tile_step
+        self.image = image[0:self.height, 0:self.width]
+
+    def scan_brightness(self):
+        """
+        Compute per-tile brightness data (mean, sd)
+        and construct an empiric probability distribution based
+        on this data (...that prefers tiles with average brightness).
+        """
+
+        # Create a brightness map from image
+        # sum() is not terribly good brightness approximation
+        brightmap = self.image.sum(2)
+
+        # Group rows and columns by tiles
+        tiledmap = brightmap.reshape([self.height_t, self.tile_step, self.width_t, self.tile_step])
+
+        # brightavgtiles is brightness mean of specific tiles
+        self.brightavgtiles = tiledmap.mean(3).mean(1)
+        # brightstdtiles is brightness S.D. of specific tiles
+        #self.brightstdtiles = numpy.sqrt(tiledmap.var(3).mean(1))
+
+        # rescale per-tile brightness mean so that minimum is 0
+        # and maximum is 1
+        minbrightness = self.brightavgtiles.min()
+        maxbrightness = self.brightavgtiles.max()
+        ptpbrightness = maxbrightness - minbrightness
+        brightxavgtiles = (self.brightavgtiles - minbrightness) / ptpbrightness
+
+        # construct probability distribution such that
+        # xavg 0.5 has highest probability
+        # TODO: Also consider S.D.? But how exactly?
+        # We might want to maximize S.D. to focus on
+        # areas with sharpest lens shapes, or minimize S.D.
+        # to focus on areas with most uniform lens interior...
+        # TODO: Nicer distribution shape?
+        self.pdtiles = numpy.power(0.5 - brightxavgtiles, 2)
+        self.pdtiles_sum = self.pdtiles.sum()
+
+        return self
+
+    def random_tile(self):
+        """
+        Choose a random tile with regards to the brightness distribution
+        among tiles (as pre-processed by scan_brightness().
+        """
+
+        stab = random.random() * self.pdtiles_sum
+        for t in numpy.mgrid[0:self.height_t, 0:self.width_t].T.reshape(self.height_t * self.width_t, 2):
+            # t = [x,y] tile index
+            prob = self.pdtiles[t[0], t[1]]
+            if prob > stab:
+                return numpy.array(t)
+            stab -= prob
+        # We reach here only in case of float arithmetic imprecisions;
+        # just pick a uniformly random tile
+        return numpy.array([numpy.random.randint(self.height_t), numpy.random.randint(self.width_t)])
+
+    def tile_to_lens(self, tile, rparams):
+        """
+        Return lens grid coordinates corresponding to the center
+        of a given tile.
+        """
+        imgcoords = numpy.array([
+            tile[0] * self.tile_step + self.tile_step/2,
+            tile[1] * self.tile_step + self.tile_step/2])
+        return rparams.lensxy(imgcoords)
