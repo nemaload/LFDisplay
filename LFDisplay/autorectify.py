@@ -220,12 +220,18 @@ class RectifyParams:
         """
         return numpy.array(self.framesize / self.size).round()
 
+    def xytilted_tau(self, ic, tau):
+        """
+        Return image coordinates tilted by given tau.
+        """
+        return numpy.array([ic[0] * math.cos(tau) - ic[1] * math.sin(tau),
+                            ic[0] * math.sin(tau) + ic[1] * math.cos(tau)])
+
     def xytilted(self, ic):
         """
-        Return image coordinates tilted by tau.
+        Return image coordinates tilted by self.tau.
         """
-        return numpy.array([ic[0] * math.cos(self.tau) - ic[1] * math.sin(self.tau),
-                            ic[0] * math.sin(self.tau) + ic[1] * math.cos(self.tau)])
+        return self.xytilted_tau(ic, self.tau)
 
     def xylens(self, gc):
         """
