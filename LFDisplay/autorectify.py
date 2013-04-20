@@ -376,10 +376,10 @@ class ImageTiling:
 
         stab = random.random() * self.pdtiles_sum
         for t in numpy.mgrid[0:self.height_t, 0:self.width_t].T.reshape(self.height_t * self.width_t, 2):
-            # t = [x,y] tile index
+            # t = [y,x] tile index
             prob = self.pdtiles[t[0], t[1]]
             if prob > stab:
-                return numpy.array(t)
+                return numpy.array([t[1], t[0]])
             stab -= prob
         # We reach here only in case of float arithmetic imprecisions;
         # just pick a uniformly random tile
