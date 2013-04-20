@@ -363,8 +363,12 @@ class ImageTiling:
         # areas with sharpest lens shapes, or minimize S.D.
         # to focus on areas with most uniform lens interior...
         # TODO: Nicer distribution shape?
-        self.pdtiles = numpy.power(0.5 - brightxavgtiles, 2)
+        self.pdtiles = 0.25 - numpy.power(0.5 - brightxavgtiles, 2)
         self.pdtiles_sum = self.pdtiles.sum()
+
+        #for t in numpy.mgrid[0:self.height_t, 0:self.width_t].T.reshape(self.height_t * self.width_t, 2):
+        #    # t = [y,x] tile index
+        #    print(t[1], " ", t[0], ": ", self.pdtiles[t[0], t[1]], " (bavg ", self.brightavgtiles[t[0], t[1]], " bxavg ", brightxavgtiles[t[0], t[1]], ")")
 
         return self
 
@@ -383,6 +387,7 @@ class ImageTiling:
             stab -= prob
         # We reach here only in case of float arithmetic imprecisions;
         # just pick a uniformly random tile
+        print "ImageTiling.random_tile(): fallback to random (warning)"
         return numpy.array([numpy.random.randint(self.height_t), numpy.random.randint(self.width_t)])
 
     def tile_to_lens(self, tile, rparams):
