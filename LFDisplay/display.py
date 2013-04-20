@@ -329,6 +329,8 @@ class ImagingDisplay(QtOpenGL.QGLWidget):
         self.gridList = None # grid display list
         self.gridListDirty = True # whether we need to redraw grid
 
+        self.tiling = None
+
         # grab the saved optics recipe
         self.optics = {}
         self.optics['pitch'] = self.settings.getFloat('optics/pitch',125.0)
@@ -922,6 +924,9 @@ class ImagingDisplay(QtOpenGL.QGLWidget):
                 GL.glScalef(2.0*maxu,2.0*maxu,1.0)
                 GL.glCallList(self.circleList)
 
+            if self.gridType == 'tiling':
+                self.paintTiling()
+
             # ALTERNATE GRID
             # draw the other grid pattern with more transparency
             gridMatrixOther = self.getGridMatrix(['center','lenslet'][self.gridType == 'center'])
@@ -946,6 +951,37 @@ class ImagingDisplay(QtOpenGL.QGLWidget):
             GL.glDisable(GL.GL_BLEND)
             # disable depth test
             GL.glDepthFunc(GL.GL_ALWAYS)
+
+    def paintTiling(self):
+        if not self.tiling:
+            self.setTiling()
+        if not self.tiling:
+            return
+        w = float(self.tiling.tile_step)
+
+        GL.glColor4fv((1., 1., 0., .5))
+        GL.glLoadMatrixf([ w/self.textureSize[0], 0., 0., 0.,
+                           0., -w/self.textureSize[1], 0., 0.,
+                           0., 0., 0., 0., # no transfer to z
+                           -0.5, 0.5, 0., 1., ]);
+
+        maxi = 0
+        for y in range(len(self.tiles)):
+            for x in range(len(self.tiles[y])):
+                if self.tiles[y][x] > maxi:
+                    maxi = self.tiles[y][x]
+
+        for y in range(len(self.tiles)):
+            for x in range(len(self.tiles[y])):
+                # print x, " ", y, " -> ", 2 * self.tiles[y][x] / self.tiles_total;
+                intensity = self.tiles[y][x] / maxi
+                GL.glColor4fv((intensity, intensity, 1., .5))
+                GL.glBegin(GL.GL_LINE_LOOP)
+                GL.glVertex2f(x+0, y+0)
+                GL.glVertex2f(x+1, y+0)
+                GL.glVertex2f(x+1, y+1)
+                GL.glVertex2f(x+0, y+1)
+                GL.glEnd()
 
     def loadShadersText(self, vertexProgram, fragmentProgram):
         '''
@@ -1472,6 +1508,7 @@ class ImagingDisplay(QtOpenGL.QGLWidget):
         intensity = frame.intensity
         # done with frame
         self.last_frame = frame
+        self.tiling = None
         self.outQueue.put(frame)
         self.emit(QtCore.SIGNAL('frameDone()'))
         # set the new texture
@@ -1636,6 +1673,19 @@ class ImagingDisplay(QtOpenGL.QGLWidget):
                 self.setNormalDimensions()
         if frameGainChanged or frameIntensityChanged:
             self.setShaderPostprocess()
+
+    def setTiling(self):
+        if not hasattr(self, 'last_frame'):
+            return None
+        image = self.last_frame.to_numpy_array()
+        self.tiling = autorectify.ImageTiling(image, 30 * 5)
+        self.tiling.scan_brightness()
+        self.tiles = [[0. for i in range(self.tiling.width_t)]
+                        for j in range(self.tiling.height_t)]
+        self.tiles_total = 1000
+        for i in range(self.tiles_total):
+            t = self.tiling.random_tile()
+            self.tiles[t[1]][t[0]] += 1
 
     def normalSize(self):
         """
@@ -1852,10 +1902,12 @@ class DisplaySettings(QtGui.QWidget):
         self.gridNone = QtGui.QRadioButton('None')
         self.gridCenters = QtGui.QRadioButton('Lenslet centers')
         self.gridBoundaries = QtGui.QRadioButton('Lenslet boundaries')
+        self.gridTiling = QtGui.QRadioButton('Tiling')
         self.gridTypeLayout = QtGui.QGridLayout(self.gridTypeGroup)
         self.gridTypeLayout.setSpacing(0)
         self.gridTypeLayout.addWidget(self.gridNone,0,0)
         self.gridTypeLayout.addWidget(self.gridCenters,0,1)
+        self.gridTypeLayout.addWidget(self.gridTiling,1,0)
         self.gridTypeLayout.addWidget(self.gridBoundaries,1,1)
         self.gridTypeGroup.setLayout(self.gridTypeLayout)
 
@@ -1917,6 +1969,9 @@ class DisplaySettings(QtGui.QWidget):
         self.connect(self.gridBoundaries,
                      QtCore.SIGNAL('clicked(bool)'),
                      self.gridTypeChanged)
+        self.connect(self.gridTiling,
+                     QtCore.SIGNAL('clicked(bool)'),
+                     self.gridTypeChanged)
 
         self.connect(self.gridColorButton,
                      QtCore.SIGNAL('clicked(bool)'),
@@ -1971,6 +2026,8 @@ class DisplaySettings(QtGui.QWidget):
             self.gridCenters.setChecked(True)
         elif self.displayWindow.gridType == 'lenslet':
             self.gridBoundaries.setChecked(True)
+        elif self.displayWindow.gridType == 'tiling':
+            self.gridTiling.setChecked(True)
         # update grid color
         gridColorRGB = self.displayWindow.gridColor[0:3]
         self.gridColorPalette.setColor(QtGui.QPalette.Base,
@@ -2037,6 +2094,8 @@ class DisplaySettings(QtGui.QWidget):
             self.displayWindow.setGrid(drawGrid=True, gridType='center')
         elif self.gridBoundaries.isChecked():
             self.displayWindow.setGrid(drawGrid=True, gridType='lenslet')
+        elif self.gridTiling.isChecked():
+            self.displayWindow.setGrid(drawGrid=True, gridType='tiling')
         self.updateFromParent()
 
     def chooseGridColor(self):
