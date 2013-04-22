@@ -363,7 +363,7 @@ class ImageTiling:
         # areas with sharpest lens shapes, or minimize S.D.
         # to focus on areas with most uniform lens interior...
         # TODO: Nicer distribution shape?
-        self.pdtiles = 0.25 - numpy.power(0.5 - brightxavgtiles, 2)
+        self.pdtiles = 0.5*0.5*0.5 - numpy.power(0.5 - brightxavgtiles, 3)
         self.pdtiles_sum = self.pdtiles.sum()
 
         #for t in numpy.mgrid[0:self.height_t, 0:self.width_t].T.reshape(self.height_t * self.width_t, 2):
