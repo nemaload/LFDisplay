@@ -124,7 +124,7 @@ def measure_rectification(image, tiling, maxu, rparams):
     value = 0.
 
     # TODO: Draw all samples at once
-    for i in range(0, n_samples):
+    for i in range(n_samples):
         t = tiling.random_tile()
         s = tiling.tile_to_lens(t, rparams)
         # print "tile ", t, "lens ", s
@@ -390,6 +390,16 @@ class ImageTiling:
         print "ImageTiling.random_tile(): fallback to random (warning)"
         return numpy.array([numpy.random.randint(self.height_t), numpy.random.randint(self.width_t)])
 
+    def tile_to_imgxy(self, tile):
+        """
+        Return image coordinates corresponding to the top left
+        and bottom right corner of a given tile.
+        """
+        return (numpy.array([tile[0] * self.tile_step,
+                             tile[1] * self.tile_step]),
+                numpy.array([(tile[0]+1) * self.tile_step,
+                             (tile[1]+1) * self.tile_step]))
+
     def tile_to_lens(self, tile, rparams):
         """
         Return lens grid coordinates corresponding to the center
@@ -399,3 +409,43 @@ class ImageTiling:
             tile[0] * self.tile_step + self.tile_step/2,
             tile[1] * self.tile_step + self.tile_step/2])
         return rparams.lensxy(imgcoords)
+
+    def background_color(self, timage, maxu):
+        """
+        Make an educated guess on the shade level corresponding to the
+        background (non-lens) color.
+        """
+        # The lens radius shall correspond to maxu * grid step.
+        # Therefore, lens array area is 2*maxu * total_area and
+        # 1-lens_area shall be background color. In addition,
+        # in the lens array area, single lens square is 4*r^2
+        # while the lens circle is pi*r^2.
+        # Therefore, background color should occupy roughly
+        # (1-2*maxu + 1-pi/4) fraction of the whole area.
+        background_fract = (1 - 2*maxu) + (1 - math.pi/4)
+
+        # color_relcounts will contain relative counts of all
+        # shades in timage
+        color_nshades = 256
+        (color_counts, color_bounds) = numpy.histogram(timage, color_nshades, (0., timage.max()))
+        color_relcounts = color_counts.astype('float32') / float(self.tile_step ** 2)
+        #print timage
+        #print color_counts
+        #print color_relcounts
+
+        # find the boundary nearest to background_fract
+        sum_fract = 0.
+        for i in range(color_nshades):
+            #print "bg " + str(background_fract) + " i " + str(i) + " rc " + str(color_relcounts[i]) + " +> " + str(sum_fract)
+            sum_fract_2 = sum_fract + color_relcounts[i]
+            if sum_fract_2 > background_fract:
+                # good, we are over the boundary! but maybe it's
+                # a closer shot if we choose the previous shade
+                if i > 0 and background_fract - sum_fract < sum_fract_2 - background_fract:
+                    return (color_bounds[i-1] + color_bounds[i]) / 2
+                elif i < color_nshades-1:
+                    return (color_bounds[i+1] + color_bounds[i]) / 2
+                else:
+                    return color_bounds[i-1]
+            sum_fract = sum_fract_2
+        return 0.5 # unf, what else to do?
