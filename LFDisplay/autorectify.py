@@ -34,6 +34,11 @@ import math
 import numpy
 import random
 
+import cv
+import cv2
+import matplotlib.pyplot as plt
+import matplotlib.patches
+
 
 MAX_RADIUS = 30
 
@@ -44,8 +49,95 @@ def autorectify(frame, maxu):
     given optics parameters (maxu==maxNormalizedSlope) and return
     a tuple of (lensletOffset, lensletHoriz, lensletVert).
     """
-    solution = autorectify_de(frame, maxu)
+    # solution = autorectify_de(frame, maxu)
+    solution = autorectify_cv(frame, maxu)
     return solution.to_steps()
+
+
+def autorectify_cv(frame, maxu):
+    """
+    Autorectification based on computer vision analysis.
+    """
+    image = frame.to_numpy_array()
+
+    tiling = ImageTiling(image, MAX_RADIUS * 5)
+    tiling.scan_brightness()
+
+    n_samples = 5
+    tiles = range(n_samples)
+    colors = [ "lightsalmon", "lightgreen", "lightblue", "red", "green", "blue" ]
+    for i in range(n_samples):
+        t = tiling.random_tile()
+        (ul, br) = tiling.tile_to_imgxy(t)
+        tiles[i] = (ul, br)
+        # image pixels in the chosen tile
+        timage = image[ul[1]:br[1], ul[0]:br[0]].reshape(tiling.tile_step, tiling.tile_step).copy()
+        timage = timage.astype('float') * 255 / timage.max()
+        timage8 = timage.astype('uint8')
+        #cv.Smooth(cv.fromarray(timage8), cv.fromarray(timage8), cv.CV_GAUSSIAN, 5, 5);
+        #cv.Canny(cv.fromarray(timage8), cv.fromarray(timage8), 20, 100)
+
+        # Threshold such that background is black, foreground is white
+        # (you may want to turn this on/off based on the method below)
+        if 1:
+            background_color = tiling.background_color(timage, maxu)
+            foreground_i = timage > background_color
+            timage[foreground_i] = 1.
+            timage[numpy.invert(foreground_i)] = 0.
+
+        timage8 = timage.astype('uint8')
+
+        minsize = 12
+
+        # Hough transform:
+        #storage = cv.CreateMat(tiling.tile_step, 1, cv.CV_32FC3)
+        #print timage8, storage
+        #cv.Canny(cv.fromarray(timage8), cv.fromarray(timage8), 20, 100)
+        #cv.Smooth(cv.fromarray(timage8), cv.fromarray(timage8), cv.CV_GAUSSIAN, 5, 5);
+        #circles = cv.HoughCircles(cv.fromarray(timage8), storage, cv.CV_HOUGH_GRADIENT, 2, 2*minsize, 50, 50, minsize, MAX_RADIUS)
+        #print circles, storage
+        #if storage.rows > 0:
+        #    for j in range(len(numpy.asarray(storage))):
+        #        print j
+        #        (cx, cy, cr) = numpy.asarray(storage)[j][0].astype('int')
+        #        print cx, cy, cr
+        #        cv.Circle(cv.fromarray(timage8), (cx, cy), cr, 15, 2, 8, 0 )
+
+        # Contours:
+        storage = cv.CreateMemStorage(0)
+        contours = cv.FindContours(cv.fromarray(timage8.copy()), storage, cv.CV_RETR_EXTERNAL)
+        for c in contours:
+            print c
+        cv.DrawContours(cv.fromarray(timage8), contours, 15, 31, 0, 1, cv.CV_AA, (0, 0))
+
+        # MSER: (XXX: you need to invert the image too)
+        #detector = cv2.FeatureDetector_create('MSER')
+        #fs = detector.detect(timage8)
+        #fs.sort(key = lambda x: -x.size)
+        #for f in fs:
+        #    print f.pt, f.size
+        #    cv2.circle(timage8, (int(f.pt[0]), int(f.pt[1])), int(f.size/2), 128, 1, cv2.CV_AA)
+
+        # Show window with tile
+        plt.figure("tile " + str(i) + ": " + colors[i])
+        imgplot = plt.imshow(timage8, cmap=plt.cm.gray)
+        plt.show()
+
+    # Show window with whole image, tile parts highlighted
+    f = plt.figure("whole")
+    imgplot = plt.imshow(image.reshape(frame.height, frame.width), cmap = plt.cm.gray)
+    for i in range(n_samples):
+        (ul, br) = tiles[i]
+        ax = f.add_subplot(111)
+        rect = matplotlib.patches.Rectangle((ul[0],ul[1]),
+                width=tiling.tile_step, height=tiling.tile_step,
+                edgecolor=colors[i], fill=0)
+        ax.add_patch(rect)
+    plt.show()
+
+    # XXX: We just return random parameters for now; this method
+    # is not finished.
+    return RectifyParams([frame.width, frame.height]).randomize()
 
 
 def autorectify_de(frame, maxu):
@@ -57,6 +149,15 @@ def autorectify_de(frame, maxu):
     solutions_n = 20
     solutions = [RectifyParams([frame.width, frame.height]).randomize()
                      for i in range(solutions_n)]
+    # 2160x2560 -> 1080x1280
+    # (1284.367000,1190.300000,23.299000,-0.032000,-0.035000,23.262000)
+    # (x-offset,y-offset,right-dx,right-dy,down-dx,down-dy)
+    solutions[0].size[0] = 23.3
+    solutions[0].size[1] = 23.3
+    solutions[0].tau = 0.0137397938
+    solutions[0].offset[0] = -8.907
+    solutions[0].offset[1] = -6.303
+    print solutions[0].to_steps()
 
     image = frame.to_numpy_array()
     tiling = ImageTiling(image, MAX_RADIUS * 5)
