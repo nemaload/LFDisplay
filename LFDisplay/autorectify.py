@@ -63,65 +63,96 @@ def autorectify_cv(frame, maxu):
     tiling = ImageTiling(image, MAX_RADIUS * 5)
     tiling.scan_brightness()
 
-    n_samples = 5
+    fftsumpow = numpy.zeros([tiling.tile_step, tiling.tile_step])
+
+    n_samples = 2
     tiles = range(n_samples)
     colors = [ "lightsalmon", "lightgreen", "lightblue", "red", "green", "blue" ]
     for i in range(n_samples):
         t = tiling.random_tile()
         (ul, br) = tiling.tile_to_imgxy(t)
         tiles[i] = (ul, br)
+        s = tiling.tile_step
         # image pixels in the chosen tile
-        timage = image[ul[1]:br[1], ul[0]:br[0]].reshape(tiling.tile_step, tiling.tile_step).copy()
-        timage = timage.astype('float') * 255 / timage.max()
-        timage8 = timage.astype('uint8')
-        #cv.Smooth(cv.fromarray(timage8), cv.fromarray(timage8), cv.CV_GAUSSIAN, 5, 5);
-        #cv.Canny(cv.fromarray(timage8), cv.fromarray(timage8), 20, 100)
+        timage = image[ul[1]:br[1], ul[0]:br[0]].reshape(s, s).copy()
+        timage = 255. - timage.astype('float') * 255. / timage.max()
 
-        # Threshold such that background is black, foreground is white
-        # (you may want to turn this on/off based on the method below)
         if 1:
+            # Threshold such that background is black, foreground is white
+            # (you may want to turn this on/off based on the method below)
             background_color = tiling.background_color(timage, maxu)
             foreground_i = timage > background_color
             timage[foreground_i] = 1.
             timage[numpy.invert(foreground_i)] = 0.
+            # FFT hates sharp edges, so blur us; however, bad blurring
+            # would introduce artificial frequencies; rectangular uniform
+            # blur seems like exactly what we want, though
+            timage = cv2.blur(timage, (MAX_RADIUS,MAX_RADIUS))
+            #timage = cv2.GaussianBlur(timage, (MAX_RADIUS-1,MAX_RADIUS-1), 0)
 
-        timage8 = timage.astype('uint8')
+        # 2D Hanning window
+        if 0:
+            # ...outer product way
+            window = numpy.hanning(s)
+            window = numpy.outer(window, window)
+        else:
+            # ...rotational way
+            # W(x,y) = 0.5 + 0.5 * cos(pi * r(x,y)/r(max))
+            ri = numpy.linspace(-s/2, s/2, s)
+            rx = numpy.repeat(ri[numpy.newaxis,:], s, 0)
+            ry = numpy.repeat(ri[:,numpy.newaxis], s, 1)
+            r = numpy.sqrt(rx * rx + ry * ry)
+            rmax = r[int(s/2),0]
+            numpy.clip(r, 0., rmax, out=r)
+            window = 0.5 * numpy.cos(math.pi * r/rmax) + 0.5
+        twindowed = window * timage
 
-        minsize = 12
-
-        # Hough transform:
-        #storage = cv.CreateMat(tiling.tile_step, 1, cv.CV_32FC3)
-        #print timage8, storage
-        #cv.Canny(cv.fromarray(timage8), cv.fromarray(timage8), 20, 100)
-        #cv.Smooth(cv.fromarray(timage8), cv.fromarray(timage8), cv.CV_GAUSSIAN, 5, 5);
-        #circles = cv.HoughCircles(cv.fromarray(timage8), storage, cv.CV_HOUGH_GRADIENT, 2, 2*minsize, 50, 50, minsize, MAX_RADIUS)
-        #print circles, storage
-        #if storage.rows > 0:
-        #    for j in range(len(numpy.asarray(storage))):
-        #        print j
-        #        (cx, cy, cr) = numpy.asarray(storage)[j][0].astype('int')
-        #        print cx, cy, cr
-        #        cv.Circle(cv.fromarray(timage8), (cx, cy), cr, 15, 2, 8, 0 )
-
-        # Contours:
-        storage = cv.CreateMemStorage(0)
-        contours = cv.FindContours(cv.fromarray(timage8.copy()), storage, cv.CV_RETR_EXTERNAL)
-        for c in contours:
-            print c
-        cv.DrawContours(cv.fromarray(timage8), contours, 15, 31, 0, 1, cv.CV_AA, (0, 0))
-
-        # MSER: (XXX: you need to invert the image too)
-        #detector = cv2.FeatureDetector_create('MSER')
-        #fs = detector.detect(timage8)
-        #fs.sort(key = lambda x: -x.size)
-        #for f in fs:
-        #    print f.pt, f.size
-        #    cv2.circle(timage8, (int(f.pt[0]), int(f.pt[1])), int(f.size/2), 128, 1, cv2.CV_AA)
-
-        # Show window with tile
-        plt.figure("tile " + str(i) + ": " + colors[i])
-        imgplot = plt.imshow(timage8, cmap=plt.cm.gray)
+        # Show the windowed tile
+        print("tile " + str(i) + ": " + colors[i])
+        print twindowed
+        plt.figure("Wind. tile " + str(i) + ": " + colors[i])
+        imgplot = plt.imshow(twindowed, cmap=plt.cm.gray)
         plt.show()
+
+        # 2D FFT
+        fftspectrum = numpy.fft.fft2(twindowed)
+
+        # Show the power spectrum of the tile
+        fftpow = numpy.real(numpy.multiply(fftspectrum, fftspectrum.conjugate()))
+        fftsumpow += fftpow
+        plt.figure("FFT tile " + str(i) + ": " + colors[i])
+        plt.imshow(numpy.log(fftpow))
+        plt.show()
+
+        # Low-pass filter - keep only 16x16 corners of the original
+        # array, therefore keeping only the low frequency component
+        cx=16
+        cy=16
+        fftcropmask = numpy.logical_not(numpy.zeros([s,s]).astype(bool))
+        fftcropmask[:,cx:s-cx] = False
+        fftcropmask[cy:s-cy] = False
+        # Delete the central rows + columns of fftcropimage
+        fftcropspectrum = fftspectrum[fftcropmask].reshape(cy*2,cx*2)
+
+        # An awful "high-pass" filter that should just punch out
+        # the DC and window component
+        fftcropspectrum[0:2,0:2] = 0.001
+        fftcropspectrum[0:2,cx*2-2:cx*2] = 0.001
+        fftcropspectrum[cy*2-2:cy*2,0:2] = 0.001
+        fftcropspectrum[cy*2-2:cy*2,cx*2-2:cx*2] = 0.001
+
+        # Show the filtered power spectrum
+        plt.figure("FFT croptile " + str(i) + ": " + colors[i])
+        plt.imshow(numpy.log(numpy.real(numpy.multiply(fftcropspectrum, fftcropspectrum.conjugate()))))
+        plt.show()
+        # Show the original image reconstructed back from the filtered
+        # frequency data to demonstrate we are on to something :)
+        plt.figure("IFFT croptile " + str(i) + ": " + colors[i])
+        plt.imshow(numpy.real(numpy.fft.ifft2(fftcropspectrum)), cmap=plt.cm.gray)
+        plt.show()
+
+        # 2. ???
+        # 3. PROFIT!
 
     # Show window with whole image, tile parts highlighted
     f = plt.figure("whole")
@@ -134,6 +165,10 @@ def autorectify_cv(frame, maxu):
                 edgecolor=colors[i], fill=0)
         ax.add_patch(rect)
     plt.show()
+
+    #plt.figure("FFT power sum over all scanned tiles")
+    #plt.imshow(numpy.log(fftsumpow))
+    #plt.show()
 
     # XXX: We just return random parameters for now; this method
     # is not finished.
