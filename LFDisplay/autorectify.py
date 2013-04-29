@@ -74,81 +74,47 @@ def autorectify_cv(frame, maxu):
         tiles[i] = (ul, br)
         s = tiling.tile_step
         # image pixels in the chosen tile
-        timage = image[ul[1]:br[1], ul[0]:br[0]].reshape(s, s).copy()
-        timage = 255. - timage.astype('float') * 255. / timage.max()
+        timage = TileImage(tiling, image[ul[1]:br[1], ul[0]:br[0]].reshape(s, s).copy())
+        timage.to256()
 
         if 1:
-            # Threshold such that background is black, foreground is white
-            # (you may want to turn this on/off based on the method below)
-            background_color = tiling.background_color(timage, maxu)
-            foreground_i = timage > background_color
-            timage[foreground_i] = 1.
-            timage[numpy.invert(foreground_i)] = 0.
-            # FFT hates sharp edges, so blur us; however, bad blurring
-            # would introduce artificial frequencies; rectangular uniform
-            # blur seems like exactly what we want, though
-            timage = cv2.blur(timage, (MAX_RADIUS,MAX_RADIUS))
-            #timage = cv2.GaussianBlur(timage, (MAX_RADIUS-1,MAX_RADIUS-1), 0)
+            timage.threshold(maxu).blur()
 
         # 2D Hanning window
         if 0:
-            # ...outer product way
-            window = numpy.hanning(s)
-            window = numpy.outer(window, window)
+            window = timage.hanning_outer_window()
         else:
-            # ...rotational way
-            # W(x,y) = 0.5 + 0.5 * cos(pi * r(x,y)/r(max))
-            ri = numpy.linspace(-s/2, s/2, s)
-            rx = numpy.repeat(ri[numpy.newaxis,:], s, 0)
-            ry = numpy.repeat(ri[:,numpy.newaxis], s, 1)
-            r = numpy.sqrt(rx * rx + ry * ry)
-            rmax = r[int(s/2),0]
-            numpy.clip(r, 0., rmax, out=r)
-            window = 0.5 * numpy.cos(math.pi * r/rmax) + 0.5
-        twindowed = window * timage
+            window = timage.hanning_rotated_window()
+        twindowed = TileImage(tiling, window * timage.image)
 
         # Show the windowed tile
         print("tile " + str(i) + ": " + colors[i])
-        print twindowed
+        print twindowed.image
         plt.figure("Wind. tile " + str(i) + ": " + colors[i])
-        imgplot = plt.imshow(twindowed, cmap=plt.cm.gray)
+        imgplot = plt.imshow(twindowed.image, cmap=plt.cm.gray)
         plt.show()
 
         # 2D FFT
-        fftspectrum = numpy.fft.fft2(twindowed)
+        fftspectrum = TileSpectrum(numpy.fft.fft2(twindowed.image))
 
         # Show the power spectrum of the tile
-        fftpow = numpy.real(numpy.multiply(fftspectrum, fftspectrum.conjugate()))
+        fftpow = fftspectrum.power()
         fftsumpow += fftpow
         plt.figure("FFT tile " + str(i) + ": " + colors[i])
         plt.imshow(numpy.log(fftpow))
         plt.show()
 
-        # Low-pass filter - keep only 16x16 corners of the original
-        # array, therefore keeping only the low frequency component
-        cx=16
-        cy=16
-        fftcropmask = numpy.logical_not(numpy.zeros([s,s]).astype(bool))
-        fftcropmask[:,cx:s-cx] = False
-        fftcropmask[cy:s-cy] = False
-        # Delete the central rows + columns of fftcropimage
-        fftcropspectrum = fftspectrum[fftcropmask].reshape(cy*2,cx*2)
-
-        # An awful "high-pass" filter that should just punch out
-        # the DC and window component
-        fftcropspectrum[0:2,0:2] = 0.001
-        fftcropspectrum[0:2,cx*2-2:cx*2] = 0.001
-        fftcropspectrum[cy*2-2:cy*2,0:2] = 0.001
-        fftcropspectrum[cy*2-2:cy*2,cx*2-2:cx*2] = 0.001
+        # Filter the spectrum
+        fftcropspectrum = fftspectrum.bandpass(16, 16)
 
         # Show the filtered power spectrum
         plt.figure("FFT croptile " + str(i) + ": " + colors[i])
-        plt.imshow(numpy.log(numpy.real(numpy.multiply(fftcropspectrum, fftcropspectrum.conjugate()))))
+        plt.imshow(numpy.log(fftcropspectrum.power()))
         plt.show()
         # Show the original image reconstructed back from the filtered
         # frequency data to demonstrate we are on to something :)
         plt.figure("IFFT croptile " + str(i) + ": " + colors[i])
-        plt.imshow(numpy.real(numpy.fft.ifft2(fftcropspectrum)), cmap=plt.cm.gray)
+        plt.imshow(numpy.real(numpy.fft.ifft2(fftcropspectrum.spectrum)), cmap=plt.cm.gray)
         plt.show()
 
         # 2. ???
@@ -173,6 +139,85 @@ def autorectify_cv(frame, maxu):
     # XXX: We just return random parameters for now; this method
     # is not finished.
     return RectifyParams([frame.width, frame.height]).randomize()
+
+
+class TileImage:
+    """
+    A holding class for image (numpy array) of a single tile
+    analyzed.
+    """
+    def __init__(self, tiling, timage):
+        self.tiling = tiling
+        self.image = timage
+    def to256(self):
+        self.image = 255. - self.image.astype('float') * 255. / self.image.max()
+        return self
+
+    def threshold(self, maxu):
+        # Threshold such that background is black, foreground is white
+        # (you may want to turn this on/off based on the method below)
+        background_color = self.tiling.background_color(self.image, maxu)
+        foreground_i = self.image > background_color
+        self.image[foreground_i] = 1.
+        self.image[numpy.invert(foreground_i)] = 0.
+        return self
+    def blur(self):
+        # FFT hates sharp edges, so blur us; however, bad blurring
+        # would introduce artificial frequencies; rectangular uniform
+        # blur seems like exactly what we want, though
+        self.image = cv2.blur(self.image, (MAX_RADIUS,MAX_RADIUS))
+        #self.image = cv2.GaussianBlur(self.image, (MAX_RADIUS-1,MAX_RADIUS-1), 0)
+        return self
+
+    def hanning_outer_window(self):
+        # ...outer product way
+        window = numpy.hanning(self.tiling.tile_step)
+        window = numpy.outer(window, window)
+        return window
+    def hanning_rotated_window(self):
+        # ...rotational way
+        # W(x,y) = 0.5 + 0.5 * cos(pi * r(x,y)/r(max))
+        s = self.tiling.tile_step
+        ri = numpy.linspace(-s/2, s/2, s)
+        rx = numpy.repeat(ri[numpy.newaxis,:], s, 0)
+        ry = numpy.repeat(ri[:,numpy.newaxis], s, 1)
+        r = numpy.sqrt(rx * rx + ry * ry)
+        rmax = r[int(s/2),0]
+        numpy.clip(r, 0., rmax, out=r)
+        window = 0.5 * numpy.cos(math.pi * r/rmax) + 0.5
+        return window
+
+class TileSpectrum:
+    """
+    A holding class for 2D frequency spectrum (numpy array)
+    of a single tile analyzed.
+    """
+    def __init__(self, spectrum):
+        self.spectrum = spectrum
+
+    def bandpass(self, cx, cy):
+        sx = self.spectrum.shape[1]
+        sy = self.spectrum.shape[0]
+
+        # Low-pass filter - keep only 16x16 corners of the original
+        # array, therefore keeping only the low frequency component
+        fftcropmask = numpy.logical_not(numpy.zeros([sy,sx]).astype(bool))
+        fftcropmask[:,cx:sx-cx] = False
+        fftcropmask[cy:sy-cy] = False
+        # Delete the central rows + columns of fftcropimage
+        fftcropspectrum = self.spectrum.copy()[fftcropmask].reshape(cy*2,cx*2)
+
+        # An awful "high-pass" filter that should just punch out
+        # the DC and window component
+        fftcropspectrum[0:2,0:2] = 0.001
+        fftcropspectrum[0:2,cx*2-2:cx*2] = 0.001
+        fftcropspectrum[cy*2-2:cy*2,0:2] = 0.001
+        fftcropspectrum[cy*2-2:cy*2,cx*2-2:cx*2] = 0.001
+
+        return TileSpectrum(fftcropspectrum)
+
+    def power(self):
+        return numpy.real(numpy.multiply(self.spectrum, self.spectrum.conjugate()))
 
 
 def autorectify_de(frame, maxu):
