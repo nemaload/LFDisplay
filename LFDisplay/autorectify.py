@@ -209,10 +209,10 @@ class TileSpectrum:
 
         # An awful "high-pass" filter that should just punch out
         # the DC and window component
-        fftcropspectrum[0:2,0:2] = 0.001
-        fftcropspectrum[0:2,cx*2-2:cx*2] = 0.001
-        fftcropspectrum[cy*2-2:cy*2,0:2] = 0.001
-        fftcropspectrum[cy*2-2:cy*2,cx*2-2:cx*2] = 0.001
+        #fftcropspectrum[0:2,0:2] = 0.001
+        #fftcropspectrum[0:2,cx*2-2:cx*2] = 0.001
+        #fftcropspectrum[cy*2-2:cy*2,0:2] = 0.001
+        #fftcropspectrum[cy*2-2:cy*2,cx*2-2:cx*2] = 0.001
 
         return TileSpectrum(fftcropspectrum)
 
