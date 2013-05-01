@@ -106,16 +106,51 @@ def autorectify_cv(frame, maxu):
 
         # Filter the spectrum
         fftcropspectrum = fftspectrum.bandpass(16, 16)
+        vmin = numpy.log(fftcropspectrum.power()).min()
+        vmax = numpy.log(fftcropspectrum.power()).max()
 
         # Show the filtered power spectrum
         plt.figure("FFT croptile " + str(i) + ": " + colors[i])
-        plt.imshow(numpy.log(fftcropspectrum.power()))
+        plt.imshow(numpy.log(fftcropspectrum.power()), interpolation='nearest', vmin=vmin, vmax=vmax)
         plt.show()
         # Show the original image reconstructed back from the filtered
         # frequency data to demonstrate we are on to something :)
         plt.figure("IFFT croptile " + str(i) + ": " + colors[i])
         plt.imshow(numpy.real(numpy.fft.ifft2(fftcropspectrum.spectrum)), cmap=plt.cm.gray)
         plt.show()
+
+        # Frequency spectrum FFT equation (image MxN, spectrum YxX) is
+        #     A_{yx} = \sum_{m=0}^{M-1} \sum_{n=0}^{N-1} (a_{mn} * exp(-2*pi*i * (ym/M + xn/N)))
+        #
+        # The corresponding IFFT equation would be
+        #     a_{mn} = 1/(Y*X) * \sum_{y=0}^{Y-1} \sum_{x=0}^{X-1} (A_{yx} * exp(2*pi*i * (my/Y + nx/X)))
+
+        # Find local peaks in the A matrix; these correspond to frequencies
+        #     F_j = (fx, fy)_j (with j = 0..J-1) that are "in alignment" with
+        # the lens grid.
+
+        peaks = fftcropspectrum.peaks()
+
+        # Therefore, the image can be described by IFFT equation
+        #     a_{mn} = 1/J * \sum_{j=0}^{J-1} (A_{F_j} * exp(2*pi*i * (m*(fy_j)/Y + n*(fx_j)/X)))
+
+        fftcropspectrum.zero_complement(peaks)
+
+        plt.figure("FFT filttile " + str(i) + ": " + colors[i])
+        plt.imshow(numpy.log(fftcropspectrum.power()), interpolation='nearest', vmin=vmin, vmax=vmax)
+        plt.show()
+        plt.figure("IFFT filttile " + str(i) + ": " + colors[i])
+        plt.imshow(numpy.real(numpy.fft.ifft2(fftcropspectrum.spectrum)), cmap=plt.cm.gray)
+        plt.show()
+
+        # ...but on the other hand, we could try to approximate it by lens
+        # grid parameters G = (gx, gy) that describe horizontal/vertical
+        # frequency of the lens grid peaks:
+        #     a'_{mn} = exp(2*pi*i * (m*(gy_j)/Y + n*(gx_j)/X))
+
+        # We want to find out G, therefore we want to minimize |a - a'| over G:
+        #     \sum_m \sum_n (1/J * \sum_{j=0}^{J-1} (A_{F_j} * exp(2*pi*i * (m*(fy_j)/Y + n*(fx_j)/X))) - exp(2*pi*i * (m*(gy_j)/Y + n*(gx_j)/X)))
+
 
         # 2. ???
         # 3. PROFIT!
@@ -218,6 +253,58 @@ class TileSpectrum:
 
     def power(self):
         return numpy.real(numpy.multiply(self.spectrum, self.spectrum.conjugate()))
+        #return numpy.real(numpy.multiply(self.spectrum.real, self.spectrum.real))
+
+    def peaks(self):
+        # Extend spectrum with a zero "border"
+        #bordered = numpy.zeros((self.spectrum.shape[0]+2, self.spectrum.shape[1]+2))
+        #bordered[1:self.spectrum.shape[0]+1,1:self.spectrum.shape[1]+1] = numpy.real(self.spectrum)
+        # Obtain local extremes
+        #bmin = ((bordered <= numpy.roll(bordered,  1, 0)) &
+        #        (bordered <= numpy.roll(bordered, -1, 0)) &
+        #        (bordered <= numpy.roll(bordered,  1, 1)) &
+        #        (bordered <= numpy.roll(bordered, -1, 1)))
+        #bmax = ((bordered >= numpy.roll(bordered,  1, 0)) &
+        #        (bordered >= numpy.roll(bordered, -1, 0)) &
+        #        (bordered >= numpy.roll(bordered,  1, 1)) &
+        #        (bordered >= numpy.roll(bordered, -1, 1)))
+        #bex = bmin | bmax
+        #bpeaks = numpy.transpose(bex.nonzero())
+        #peaks = bpeaks - 1
+        ss = self.power()
+        smin = numpy.array([ i for i in numpy.ndindex(ss.shape)
+                 if (i[0] == 0 or ss[i[0]-1, i[1]] >= ss[i[0], i[1]])
+                    and (i[0] == ss.shape[0] - 1 or ss[i[0]+1, i[1]] >= ss[i[0], i[1]])
+                    and (i[1] == 0 or ss[i[0], i[1]-1] >= ss[i[0], i[1]])
+                    and (i[1] == ss.shape[1] - 1 or ss[i[0], i[1]+1] >= ss[i[0], i[1]]) ])
+        smax = numpy.array([ i for i in numpy.ndindex(ss.shape)
+                 if (i[0] == 0 or ss[i[0]-1, i[1]] <= ss[i[0], i[1]])
+                    and (i[0] == ss.shape[0] - 1 or ss[i[0]+1, i[1]] <= ss[i[0], i[1]])
+                    and (i[1] == 0 or ss[i[0], i[1]-1] <= ss[i[0], i[1]])
+                    and (i[1] == ss.shape[1] - 1 or ss[i[0], i[1]+1] <= ss[i[0], i[1]]) ])
+        numpy.set_printoptions(threshold=numpy.nan)
+        print "spectrum"
+        print ss
+        print "min "
+        print smin
+        print "max "
+        print smax
+        #peaks = numpy.append(smin, smax, axis=0)
+        peaks = smax
+        return peaks
+
+    def zero_complement(self, preserve):
+        fspectrum = numpy.zeros(self.spectrum.shape, dtype=numpy.cfloat)
+        print "preserve"
+        print preserve
+        print "pre new spectrum"
+        print fspectrum
+        for f in preserve:
+            print f
+            fspectrum[f[0], f[1]] = self.spectrum[f[0], f[1]]
+        print "new spectrum"
+        print fspectrum
+        self.spectrum = fspectrum
 
 
 def autorectify_de(frame, maxu):
