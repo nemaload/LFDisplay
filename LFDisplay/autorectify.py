@@ -426,8 +426,13 @@ class RectifyParams:
         elif self.size[1] < self.minsize:
             self.size[1] = self.minsize
 
-        self.offset = self.offset % self.size - self.size/2
-        self.tau = self.tau % (math.pi/8)
+        self.tau = (self.tau + math.pi/16) % (math.pi/8) - math.pi/16
+
+        #diag_step = self.xytilted(self.size)
+        #print "normalize pre: ", self.offset, self.size, diag_step
+        #self.offset = (self.offset + self.size/2) % diag_step - self.size/2
+        #print "normalize post: ", self.offset
+
         return self
 
     def to_steps(self):
