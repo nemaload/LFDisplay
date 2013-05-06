@@ -97,8 +97,8 @@ def autorectify_cv(frame, maxu):
     rp = RectifyParams.median(rps)
 
     # Fine-tune lens position
+    lens0 = rp.offset + rp.framesize/2
     while True:
-        lens0 = rp.offset + rp.framesize/2
         matrixsize = 2
         shiftmatrix = numpy.array([[measure_rectification_one(image, maxu, rp, lens0 + [y, x])
                                    for x in range(-matrixsize, matrixsize+1)]
@@ -107,8 +107,9 @@ def autorectify_cv(frame, maxu):
         gradient = numpy.array(numpy.unravel_index(shiftmatrix.argmax(), (matrixsize*2+1,matrixsize*2+1))) - [matrixsize,matrixsize]
         if gradient[0] == 0 and gradient[1] == 0:
             break
-        rp.offset += gradient
+        lens0 += gradient
         # TODO: Reuse a portion of shiftmatrix?
+    rp.offset = lens0 - rp.framesize/2
 
     return rp
 
