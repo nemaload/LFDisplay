@@ -592,15 +592,17 @@ class ImageTiling:
         print "ImageTiling.random_tile(): fallback to random (warning)"
         return numpy.array([numpy.random.randint(self.height_t), numpy.random.randint(self.width_t)])
 
-    def tile_to_imgxy(self, tile):
+    def tile_to_imgxy(self, tile, perturb=[0,0]):
         """
         Return image coordinates corresponding to the top left
-        and bottom right corner of a given tile.
+        and bottom right corner of a given tile. The origin
+        is perturbed by the given offset.
         """
-        return (numpy.array([tile[0] * self.tile_step,
-                             tile[1] * self.tile_step]),
-                numpy.array([(tile[0]+1) * self.tile_step,
-                             (tile[1]+1) * self.tile_step]))
+        origin = numpy.array([tile[0] * self.tile_step,
+                              tile[1] * self.tile_step])
+        origin += perturb
+        numpy.clip(origin, 0, [self.image.shape[0] - self.tile_step, self.image.shape[1] - self.tile_step], origin)
+        return (origin, origin + [self.tile_step, self.tile_step])
 
     def tile_to_lens(self, tile, rparams):
         """
