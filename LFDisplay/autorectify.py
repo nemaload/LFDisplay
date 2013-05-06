@@ -96,9 +96,14 @@ def autorectify_cv(frame, maxu):
 
     rp = RectifyParams.median(rps)
 
-    # Fine-tune lens position
+    # Fine-tune central lens position
     lens0 = rp.lens0()
-    lens0 = finetune_lens_position(image, maxu, rp, lens0)
+    try:
+        lens0 = finetune_lens_position(image, maxu, rp, lens0)
+    except IndexError:
+        # This went horrendously wrong. Just retry the whole operation.
+        print "!!! Index error when finetuning lens0; retrying autorectification"
+        return autorectify_cv(frame, maxu)
     rp.lens0(lens0)
 
     return rp
@@ -194,6 +199,7 @@ def sample_rp_from_tiling(frame, tiling, maxu):
 def finetune_lens_position(image, maxu, rp, lens0):
     while True:
         matrixsize = 2
+        image[tuple(lens0)] # just poke it to raise IndexError when we get out of bounds
         shiftmatrix = numpy.array([[measure_rectification_one(image, maxu, rp, lens0 + [y, x])
                                    for x in range(-matrixsize, matrixsize+1)]
                                   for y in range(-matrixsize, matrixsize+1)])
