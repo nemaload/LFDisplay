@@ -620,6 +620,8 @@ class RectifyParams:
     def median(array):
         """
         From an array of RectifyParams[] objects, construct median parameters.
+        An exception is offset; we prefer an offset nearest the center of
+        the image.
         """
 
         size0 = numpy.array([array[i].size[0] for i in range(len(array))])
@@ -632,7 +634,7 @@ class RectifyParams:
 
         rpmedian = RectifyParams(array[0].framesize)
         rpmedian.size = numpy.array([size0[len(size0)/2], size1[len(size1)/2]])
-        rpmedian.offset = offset[len(offset)/2]
+        rpmedian.offset = offset[0]
         rpmedian.tau = tau[len(tau)/2]
         print "median:", rpmedian
         return rpmedian
