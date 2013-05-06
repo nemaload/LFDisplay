@@ -170,7 +170,23 @@ def autorectify_cv(frame, maxu):
         ax.add_patch(rect)
     plt.show()
 
-    return RectifyParams.median(rps)
+    rp = RectifyParams.median(rps)
+
+    # Fine-tune lens position
+    while True:
+        lens0 = rp.offset + rp.framesize/2
+        matrixsize = 2
+        shiftmatrix = numpy.array([[measure_rectification_one(image, maxu, rp, lens0 + [y, x])
+                                   for x in range(-matrixsize, matrixsize+1)]
+                                  for y in range(-matrixsize, matrixsize+1)])
+        print "shiftmatrix", shiftmatrix
+        gradient = numpy.array(numpy.unravel_index(shiftmatrix.argmax(), (matrixsize*2+1,matrixsize*2+1))) - [matrixsize,matrixsize]
+        if gradient[0] == 0 and gradient[1] == 0:
+            break
+        rp.offset += gradient
+        # TODO: Reuse a portion of shiftmatrix?
+
+    return rp
 
 
 def swapxy(a):
