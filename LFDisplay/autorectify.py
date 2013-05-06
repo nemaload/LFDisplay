@@ -63,44 +63,96 @@ def autorectify_cv(frame, maxu):
     tiling = ImageTiling(image, MAX_RADIUS * 5)
     tiling.scan_brightness()
 
-    n_samples = 2
-    tiles = range(n_samples)
+    n_samples = 6
     colors = [ "lightsalmon", "lightgreen", "lightblue", "red", "green", "blue" ]
+    tiles = range(n_samples)
+    rps = range(n_samples)
     for i in range(n_samples):
+      while True:
+       try:
         t = tiling.random_tile()
-        (ul, br) = tiling.tile_to_imgxy(t)
-        tiles[i] = (ul, br)
         s = tiling.tile_step
+        perturb = [numpy.random.randint(-s/4, s/4), numpy.random.randint(-s/4, s/4)]
+        (ul, br) = tiling.tile_to_imgxy(t, perturb)
+        tiles[i] = (ul, br)
+        print image.shape, "t", t, "p", perturb, "ul", ul, "br", br
         # image pixels in the chosen tile
-        timage = TileImage(tiling, image[ul[1]:br[1], ul[0]:br[0]].reshape(s, s).copy())
+        timage = TileImage(tiling, image[ul[0]:br[0], ul[1]:br[1]].reshape(s, s).copy())
         timage.to256()
 
         # convert to black-and-white
         timage.threshold(maxu)
 
         # Show the tile
-        print("tile " + str(i) + ": " + colors[i])
-        print timage.image
-        plt.figure("Tile " + str(i) + ": " + colors[i])
-        imgplot = plt.imshow(timage.image, cmap=plt.cm.gray)
-        plt.show()
+        #print("tile " + str(i) + ": " + colors[i])
+        #print timage.image
+        #plt.figure("Tile " + str(i) + ": " + colors[i])
+        #imgplot = plt.imshow(timage.image, cmap=plt.cm.gray)
+        #plt.show()
 
-        punched = timage.image.copy()
+        # Smooth out noise
+        timage.smooth()
+
+        # Show the tile
+        #plt.figure("Smooth tile " + str(i) + ": " + colors[i])
+        #imgplot = plt.imshow(timage.image, cmap=plt.cm.gray)
+        #plt.show()
 
         # Identify a lens grid hole
-        for j in range(10):
-            holepos = timage.find_any_hole()
-            holec = timage.find_hole_center(holepos)
-            punched[tuple(holec)] = 1
+        holepos = timage.find_any_region(0)
+        holec = timage.find_region_center(0, holepos)
 
-        # TODO: single hole, build 3x3 hole matrix around it, convert that to
-        # 2x2 lens matrix, convert that to parameters... rinse, repeat 20 times,
-        # measure error and take median value
+        # Build 3x3 hole matrix
+        matrixsize = 1
+        holematrix = numpy.array([[timage.find_next_region_center(0, holec, dy, dx)
+                                   for dx in range(-matrixsize, matrixsize+1)]
+                                  for dy in range(-matrixsize, matrixsize+1)])
+
+        punched = timage.image.copy() / 2
+        for y in range(matrixsize*2 + 1):
+            for x in range(matrixsize*2 + 1):
+                print y, " ", x
+                print "  ", holematrix[y, x]
+                punched[tuple(holematrix[y, x])] = 255
 
         # Show the holes
-        plt.figure("Tile with hole center " + str(i) + ": " + colors[i])
+        #plt.figure("Tile with hole center " + str(i) + ": " + colors[i])
+        #imgplot = plt.imshow(punched, cmap=plt.cm.gray)
+        #plt.show()
+
+        lensmatrix = numpy.array([[timage.find_lens_from_holes(255, holematrix[y:y+2, x:x+2], y, x)
+                                   for x in range(0, matrixsize*2)]
+                                  for y in range(0, matrixsize*2)])
+
+        punched = timage.image.copy() / 2
+        for y in range(matrixsize*2):
+            for x in range(matrixsize*2):
+                punched[tuple(lensmatrix[y, x])] = 64
+
+        # Show the lens
+        print "lensmatrix", lensmatrix
+        plt.figure("Tile with lens center " + str(i) + ": " + colors[i])
         imgplot = plt.imshow(punched, cmap=plt.cm.gray)
         plt.show()
+
+       except IndexError:
+        # IndexError can be thrown in case one of the areas reaches
+        # to one edge of the tile; try with another tile
+        print ">>> bad region, retrying"
+        continue
+
+       else:
+        # Convert lens matrix to RectifyParams
+        rp = RectifyParams([frame.width, frame.height])
+        lensletOffset = tuple(swapxy(lensmatrix[0,0] + ul))
+        lensletHoriz = tuple(swapxy(numpy.average([lensmatrix[0,1] - lensmatrix[0,0],
+                                                   lensmatrix[1,1] - lensmatrix[1,0]], 0)))
+        lensletVert = tuple(swapxy(numpy.average([lensmatrix[1,0] - lensmatrix[0,0],
+                                                  lensmatrix[1,1] - lensmatrix[0,1]], 0)))
+        print "o", lensletOffset, "h", lensletHoriz, "v", lensletVert
+        rps[i] = rp.from_steps((lensletOffset, lensletHoriz, lensletVert))
+        print "###", rps[i]
+        break
 
     # Show window with whole image, tile parts highlighted
     f = plt.figure("whole")
@@ -108,15 +160,22 @@ def autorectify_cv(frame, maxu):
     for i in range(n_samples):
         (ul, br) = tiles[i]
         ax = f.add_subplot(111)
-        rect = matplotlib.patches.Rectangle((ul[0],ul[1]),
+        rect = matplotlib.patches.Rectangle((ul[1],ul[0]),
                 width=tiling.tile_step, height=tiling.tile_step,
                 edgecolor=colors[i], fill=0)
         ax.add_patch(rect)
     plt.show()
 
-    # XXX: We just return random parameters for now; this method
-    # is not finished.
-    return RectifyParams([frame.width, frame.height]).randomize()
+    return RectifyParams.median(rps)
+
+
+def swapxy(a):
+    """
+    If a is array[2] with coordinates, swap the elements.
+    This allows for transforming Y,X to X,Y coordinates
+    and vice versa.
+    """
+    return numpy.array([a[1], a[0]])
 
 
 class TileImage:
@@ -128,7 +187,7 @@ class TileImage:
         self.tiling = tiling
         self.image = timage
     def to256(self):
-        self.image = self.image.astype('float') * 255. / self.image.max()
+        self.image = (self.image.astype('float32') * 255. / self.image.max())
         return self
 
     def threshold(self, maxu):
@@ -136,52 +195,77 @@ class TileImage:
         # (you may want to turn this on/off based on the method below)
         background_color = self.tiling.background_color(self.image, maxu)
         foreground_i = self.image > background_color
-        self.image[foreground_i] = 1.
+        self.image[foreground_i] = 255.
         self.image[numpy.invert(foreground_i)] = 0.
         return self
-    def blur(self):
-        # FFT hates sharp edges, so blur us; however, bad blurring
-        # would introduce artificial frequencies; rectangular uniform
-        # blur seems like exactly what we want, though
-        self.image = cv2.blur(self.image, (MAX_RADIUS,MAX_RADIUS))
-        #self.image = cv2.GaussianBlur(self.image, (MAX_RADIUS-1,MAX_RADIUS-1), 0)
+    def smooth(self):
+        # Smooooth - twice!
+        self.image = cv2.medianBlur(self.image, 3);
+        self.image = cv2.medianBlur(self.image, 3);
         return self
 
-    def find_any_hole(self):
+    def find_any_region(self, color):
         c = numpy.array([self.tiling.tile_step / 2, self.tiling.tile_step / 2])
         step = 5
-        while self.image[tuple(c)] > 0.:
+        while self.image[tuple(c)] != color:
             # Random walk over the neighborhood
             c[0] += int(step*2 * random.random() - step)
             c[1] += int(step*2 * random.random() - step)
-            print c, " -> ", self.image[tuple(c)]
+            # print c, " -> ", self.image[tuple(c)]
         return c
 
-    def find_hole_center(self, holepos):
+    def find_region_center(self, color, holepos):
         xshape = self.xshape()
-        xdist = self.xdist(holepos)
+        holepos = holepos.astype('float')
+        xdist = self.xdist(holepos, color)
+
+        # XXX: just for debug print
+        xdistavg = numpy.array([-1,-1,-1,-1])
+        dir = -1
+        step = -1
+        cstep = -1
+
         i = 0
         while abs(xdist.min() - xdist.max()) > 1 and i < 100:
             # Unbalanced X distance, adjust
-            step = (xdist.max() - xdist.min())/2 * (0.5 + random.random())
-            cstep = xshape[xdist.argmax()]
-            holepos += (step * cstep).astype(int)
-            xdist = self.xdist(holepos)
-            print "walking: ", holepos, " | xdist: ", xdist
+            step = (xdist.max() - xdist.min())/(1.5 + math.sqrt(i))
+            xdistavgval = numpy.average(xdist)
+            xdistavg = numpy.abs(xdist - xdistavgval)
+            dir = xdistavg.argmax()
+            cstep = xshape[dir]
+            if xdist[dir] < xdistavgval:
+                cstep = -cstep
+            print "walking: ", holepos, " | xdist: ", xdist, " avg ", xdistavg, " == ", dir, " | <- ", step, cstep
+            holepos += step * cstep
+            xdist = self.xdist(holepos, color)
             i += 1
-        return holepos
+        print "walked : ", holepos, " | xdist: ", xdist, " avg ", xdistavg, " == ", dir, " | <- ", step, cstep
+        return holepos.astype('int')
 
-    def xdist(self, c):
+    def find_next_region_center(self, color, holepos, dy, dx):
+        if dy == 0 and dx == 0:
+            return holepos
+        xdist = numpy.average(self.xdist(holepos, color))
+        delta = numpy.array([dy, dx])
+
+        nexthole = holepos + delta * xdist*4
+        while self.image[tuple(nexthole)] != color:
+            nexthole += delta
+        return self.find_region_center(color, nexthole)
+
+    def find_lens_from_holes(self, color, holepos, y, x):
+        lenspos = numpy.array([numpy.average(holepos[:,:,0]), numpy.average(holepos[:,:,1])]).astype('int')
+        print x, y, " holepos", holepos, " | ", holepos[:,:,0], " -- ", holepos[:,:,1], " -> lenspos ", lenspos
+        return self.find_region_center(color, lenspos)
+
+    def xdist(self, c, color):
         # Measure distances of black in four directions of an "X shape"
         xshape = self.xshape()
         dist = numpy.array([0, 0, 0, 0])
         for dir in range(4):
             for i in range(100):
-                try:
-                    color = self.image[tuple(c + xshape[dir] * i)]
-                except IndexError:
-                    break
-                if color > 0.:
+                ccolor = self.image[tuple((c + xshape[dir] * i).astype('int'))]
+                if ccolor != color:
                     dist[dir] = i
                     break
         return dist
