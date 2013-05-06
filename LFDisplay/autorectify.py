@@ -70,84 +70,7 @@ def autorectify_cv(frame, maxu):
     for i in range(n_samples):
       while True:
        try:
-        t = tiling.random_tile()
-        s = tiling.tile_step
-        perturb = [numpy.random.randint(-s/4, s/4), numpy.random.randint(-s/4, s/4)]
-        (ul, br) = tiling.tile_to_imgxy(t, perturb)
-        tiles[i] = (ul, br)
-        print image.shape, "t", t, "p", perturb, "ul", ul, "br", br
-        # image pixels in the chosen tile
-        timage = TileImage(tiling, image[ul[0]:br[0], ul[1]:br[1]].reshape(s, s).copy())
-        timage.to256()
-
-        # convert to black-and-white
-        timage.threshold(maxu)
-
-        # Show the tile
-        #print("tile " + str(i) + ": " + colors[i])
-        #print timage.image
-        #plt.figure("Tile " + str(i) + ": " + colors[i])
-        #imgplot = plt.imshow(timage.image, cmap=plt.cm.gray)
-        #plt.show()
-
-        # Smooth out noise
-        timage.smooth()
-
-        # Show the tile
-        #plt.figure("Smooth tile " + str(i) + ": " + colors[i])
-        #imgplot = plt.imshow(timage.image, cmap=plt.cm.gray)
-        #plt.show()
-
-        # Identify a lens grid hole
-        holepos = timage.find_any_region(0)
-        holec = timage.find_region_center(0, holepos)
-
-        # Build 3x3 hole matrix
-        matrixsize = 1
-        holematrix = numpy.array([[timage.find_next_region_center(0, holec, dy, dx)
-                                   for dx in range(-matrixsize, matrixsize+1)]
-                                  for dy in range(-matrixsize, matrixsize+1)])
-
-        punched = timage.image.copy() / 2
-        for y in range(matrixsize*2 + 1):
-            for x in range(matrixsize*2 + 1):
-                # print y, " ", x
-                # print "  ", holematrix[y, x]
-                punched[tuple(holematrix[y, x])] = 255
-
-        # Show the holes
-        #plt.figure("Tile with hole center " + str(i) + ": " + colors[i])
-        #imgplot = plt.imshow(punched, cmap=plt.cm.gray)
-        #plt.show()
-
-        lensmatrix = numpy.array([[timage.find_lens_from_holes(255, holematrix[y:y+2, x:x+2], y, x)
-                                   for x in range(0, matrixsize*2)]
-                                  for y in range(0, matrixsize*2)])
-
-        punched = timage.image.copy() / 2
-        for y in range(matrixsize*2):
-            for x in range(matrixsize*2):
-                punched[tuple(lensmatrix[y, x])] = 64
-
-        # Show the lens
-        #print "lensmatrix", lensmatrix
-        #plt.figure("Tile with lens center " + str(i) + ": " + colors[i])
-        #imgplot = plt.imshow(punched, cmap=plt.cm.gray)
-        #plt.show()
-
-        # Convert lens matrix to RectifyParams
-        lens0 = lensmatrix[0,0] + ul
-        rp = RectifyParams([frame.width, frame.height])
-        lensletOffset = tuple(swapxy(lens0))
-        lensletHoriz = tuple(swapxy(numpy.average([lensmatrix[0,1] - lensmatrix[0,0],
-                                                   lensmatrix[1,1] - lensmatrix[1,0]], 0)))
-        lensletVert = tuple(swapxy(numpy.average([lensmatrix[1,0] - lensmatrix[0,0],
-                                                  lensmatrix[1,1] - lensmatrix[0,1]], 0)))
-        print "o", lensletOffset, "h", lensletHoriz, "v", lensletVert
-        rp.from_steps((lensletOffset, lensletHoriz, lensletVert))
-        print "###", rp
-
-        rps[i] = rp
+        (tiles[i], rps[i]) = sample_rp_from_tiling(frame, tiling, maxu)
 
        except IndexError:
         # IndexError can be thrown in case one of the areas reaches
@@ -197,6 +120,85 @@ def swapxy(a):
     and vice versa.
     """
     return numpy.array([a[1], a[0]])
+
+def sample_rp_from_tiling(frame, tiling, maxu):
+    t = tiling.random_tile()
+    s = tiling.tile_step
+    perturb = [numpy.random.randint(-s/4, s/4), numpy.random.randint(-s/4, s/4)]
+    (ul, br) = tiling.tile_to_imgxy(t, perturb)
+    print tiling.image.shape, "t", t, "p", perturb, "ul", ul, "br", br
+    # image pixels in the chosen tile
+    timage = TileImage(tiling, tiling.image[ul[0]:br[0], ul[1]:br[1]].reshape(s, s).copy())
+    timage.to256()
+
+    # convert to black-and-white
+    timage.threshold(maxu)
+
+    # Show the tile
+    #print("tile " + str(i) + ": " + colors[i])
+    #print timage.image
+    #plt.figure("Tile " + str(i) + ": " + colors[i])
+    #imgplot = plt.imshow(timage.image, cmap=plt.cm.gray)
+    #plt.show()
+
+    # Smooth out noise
+    timage.smooth()
+
+    # Show the tile
+    #plt.figure("Smooth tile " + str(i) + ": " + colors[i])
+    #imgplot = plt.imshow(timage.image, cmap=plt.cm.gray)
+    #plt.show()
+
+    # Identify a lens grid hole
+    holepos = timage.find_any_region(0)
+    holec = timage.find_region_center(0, holepos)
+
+    # Build 3x3 hole matrix
+    matrixsize = 1
+    holematrix = numpy.array([[timage.find_next_region_center(0, holec, dy, dx)
+                               for dx in range(-matrixsize, matrixsize+1)]
+                              for dy in range(-matrixsize, matrixsize+1)])
+
+    punched = timage.image.copy() / 2
+    for y in range(matrixsize*2 + 1):
+        for x in range(matrixsize*2 + 1):
+            # print y, " ", x
+            # print "  ", holematrix[y, x]
+            punched[tuple(holematrix[y, x])] = 255
+
+    # Show the holes
+    #plt.figure("Tile with hole center " + str(i) + ": " + colors[i])
+    #imgplot = plt.imshow(punched, cmap=plt.cm.gray)
+    #plt.show()
+
+    lensmatrix = numpy.array([[timage.find_lens_from_holes(255, holematrix[y:y+2, x:x+2], y, x)
+                               for x in range(0, matrixsize*2)]
+                              for y in range(0, matrixsize*2)])
+
+    punched = timage.image.copy() / 2
+    for y in range(matrixsize*2):
+        for x in range(matrixsize*2):
+            punched[tuple(lensmatrix[y, x])] = 64
+
+    # Show the lens
+    #print "lensmatrix", lensmatrix
+    #plt.figure("Tile with lens center " + str(i) + ": " + colors[i])
+    #imgplot = plt.imshow(punched, cmap=plt.cm.gray)
+    #plt.show()
+
+    # Convert lens matrix to RectifyParams
+    lens0 = lensmatrix[0,0] + ul
+    rp = RectifyParams([frame.width, frame.height])
+    lensletOffset = tuple(swapxy(lens0))
+    lensletHoriz = tuple(swapxy(numpy.average([lensmatrix[0,1] - lensmatrix[0,0],
+                                               lensmatrix[1,1] - lensmatrix[1,0]], 0)))
+    lensletVert = tuple(swapxy(numpy.average([lensmatrix[1,0] - lensmatrix[0,0],
+                                              lensmatrix[1,1] - lensmatrix[0,1]], 0)))
+    print "o", lensletOffset, "h", lensletHoriz, "v", lensletVert
+    rp.from_steps((lensletOffset, lensletHoriz, lensletVert))
+    print "###", rp
+
+    return ((ul, br), rp)
 
 
 class TileImage:
