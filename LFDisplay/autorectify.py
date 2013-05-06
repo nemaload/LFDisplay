@@ -64,7 +64,7 @@ def autorectify_cv(frame, maxu):
     tiling.scan_brightness()
 
     n_samples = 6
-    colors = [ "lightsalmon", "lightgreen", "lightblue", "red", "green", "blue" ]
+    # colors = [ "lightsalmon", "lightgreen", "lightblue", "red", "green", "blue" ]
     tiles = range(n_samples)
     rps = range(n_samples)
     for i in range(n_samples):
@@ -111,8 +111,8 @@ def autorectify_cv(frame, maxu):
         punched = timage.image.copy() / 2
         for y in range(matrixsize*2 + 1):
             for x in range(matrixsize*2 + 1):
-                print y, " ", x
-                print "  ", holematrix[y, x]
+                # print y, " ", x
+                # print "  ", holematrix[y, x]
                 punched[tuple(holematrix[y, x])] = 255
 
         # Show the holes
@@ -130,10 +130,10 @@ def autorectify_cv(frame, maxu):
                 punched[tuple(lensmatrix[y, x])] = 64
 
         # Show the lens
-        print "lensmatrix", lensmatrix
-        plt.figure("Tile with lens center " + str(i) + ": " + colors[i])
-        imgplot = plt.imshow(punched, cmap=plt.cm.gray)
-        plt.show()
+        #print "lensmatrix", lensmatrix
+        #plt.figure("Tile with lens center " + str(i) + ": " + colors[i])
+        #imgplot = plt.imshow(punched, cmap=plt.cm.gray)
+        #plt.show()
 
         # Convert lens matrix to RectifyParams
         lens0 = lensmatrix[0,0] + ul
@@ -166,7 +166,8 @@ def autorectify_cv(frame, maxu):
         ax = f.add_subplot(111)
         rect = matplotlib.patches.Rectangle((ul[1],ul[0]),
                 width=tiling.tile_step, height=tiling.tile_step,
-                edgecolor=colors[i], fill=0)
+                #edgecolor=colors[i], fill=0)
+                fill=0)
         ax.add_patch(rect)
     plt.show()
 
@@ -255,11 +256,11 @@ class TileImage:
             cstep = xshape[dir]
             if xdist[dir] < xdistavgval:
                 cstep = -cstep
-            print "walking: ", holepos, " | xdist: ", xdist, " avg ", xdistavg, " == ", dir, " | <- ", step, cstep
+            # print "walking: ", holepos, " | xdist: ", xdist, " avg ", xdistavg, " == ", dir, " | <- ", step, cstep
             holepos += step * cstep
             xdist = self.xdist(holepos, color)
             i += 1
-        print "walked : ", holepos, " | xdist: ", xdist, " avg ", xdistavg, " == ", dir, " | <- ", step, cstep
+        # print "walked : ", holepos, " | xdist: ", xdist, " avg ", xdistavg, " == ", dir, " | <- ", step, cstep
         return holepos.astype('int')
 
     def find_next_region_center(self, color, holepos, dy, dx):
@@ -275,7 +276,7 @@ class TileImage:
 
     def find_lens_from_holes(self, color, holepos, y, x):
         lenspos = numpy.array([numpy.average(holepos[:,:,0]), numpy.average(holepos[:,:,1])]).astype('int')
-        print x, y, " holepos", holepos, " | ", holepos[:,:,0], " -- ", holepos[:,:,1], " -> lenspos ", lenspos
+        # print x, y, " holepos", holepos, " | ", holepos[:,:,0], " -- ", holepos[:,:,1], " -> lenspos ", lenspos
         return self.find_region_center(color, lenspos)
 
     def xdist(self, c, color):
@@ -374,7 +375,7 @@ def measure_rectification(image, tiling, maxu, rparams):
     """
     gridsize = rparams.gridsize()
     n_samples = int(10 + round(gridsize[0] * gridsize[1] / 400))
-    print "  measuring ", rparams, " with grid ", gridsize, " and " ,n_samples ," samples"
+    # print "  measuring ", rparams, " with grid ", gridsize, " and " ,n_samples ," samples"
 
     value = 0.
 
