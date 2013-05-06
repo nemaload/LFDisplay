@@ -82,17 +82,17 @@ def autorectify_cv(frame, maxu):
         break
 
     # Show window with whole image, tile parts highlighted
-    f = plt.figure("whole")
-    imgplot = plt.imshow(image.reshape(frame.height, frame.width), cmap = plt.cm.gray)
-    for i in range(n_samples):
-        (ul, br) = tiles[i]
-        ax = f.add_subplot(111)
-        rect = matplotlib.patches.Rectangle((ul[1],ul[0]),
-                width=tiling.tile_step, height=tiling.tile_step,
-                #edgecolor=colors[i], fill=0)
-                fill=0)
-        ax.add_patch(rect)
-    plt.show()
+    #f = plt.figure("whole")
+    #imgplot = plt.imshow(image.reshape(frame.height, frame.width), cmap = plt.cm.gray)
+    #for i in range(n_samples):
+    #    (ul, br) = tiles[i]
+    #    ax = f.add_subplot(111)
+    #    rect = matplotlib.patches.Rectangle((ul[1],ul[0]),
+    #            width=tiling.tile_step, height=tiling.tile_step,
+    #            #edgecolor=colors[i], fill=0)
+    #            fill=0)
+    #    ax.add_patch(rect)
+    #plt.show()
 
     rp = RectifyParams.median(rps)
 
