@@ -632,9 +632,6 @@ class ImageTiling:
 
         # brightavgtiles is brightness mean of specific tiles
         self.brightavgtiles = tiledmap.mean(3).mean(1)
-        # brightstdtiles is brightness S.D. of specific tiles
-        #self.brightstdtiles = numpy.sqrt(tiledmap.var(3).mean(1))
-
         # rescale per-tile brightness mean so that minimum is 0
         # and maximum is 1
         minbrightness = self.brightavgtiles.min()
@@ -642,14 +639,26 @@ class ImageTiling:
         ptpbrightness = maxbrightness - minbrightness
         brightxavgtiles = (self.brightavgtiles - minbrightness) / ptpbrightness
 
+        # brightstdtiles is brightness S.D. of specific tiles
+        brightstdtiles = numpy.sqrt(tiledmap.var(3).mean(1))
+
+        # distances from image center
+        tilecenters = numpy.array([[[y, x]
+                                    for x in range(self.tile_step/2, self.width, self.tile_step)]
+                                   for y in range(self.tile_step/2, self.height, self.tile_step)])
+        tilecdists = numpy.sqrt(numpy.sum((tilecenters - [self.height / 2, self.width / 2]) ** 2, 2))
+
         # construct probability distribution such that
         # xavg 0.5 has highest probability
+        # also factored in is preference for central tiles
+        # as there are fish eye deformities near the borders
         # TODO: Also consider S.D.? But how exactly?
         # We might want to maximize S.D. to focus on
         # areas with sharpest lens shapes, or minimize S.D.
         # to focus on areas with most uniform lens interior...
         # TODO: Nicer distribution shape?
-        self.pdtiles = 0.5*0.5*0.5 - numpy.power(0.5 - brightxavgtiles, 3)
+        #self.pdtiles = (0.5*0.5*0.5 - numpy.power(0.5 - brightxavgtiles, 3)) / numpy.sqrt(tilecdists)
+        self.pdtiles = numpy.power(brightstdtiles, 3) / numpy.sqrt(tilecdists)
         self.pdtiles_sum = self.pdtiles.sum()
 
         #for t in numpy.mgrid[0:self.height_t, 0:self.width_t].T.reshape(self.height_t * self.width_t, 2):
