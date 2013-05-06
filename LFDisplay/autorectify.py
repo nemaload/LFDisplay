@@ -98,17 +98,7 @@ def autorectify_cv(frame, maxu):
 
     # Fine-tune lens position
     lens0 = rp.lens0()
-    while True:
-        matrixsize = 2
-        shiftmatrix = numpy.array([[measure_rectification_one(image, maxu, rp, lens0 + [y, x])
-                                   for x in range(-matrixsize, matrixsize+1)]
-                                  for y in range(-matrixsize, matrixsize+1)])
-        print "shiftmatrix", shiftmatrix
-        gradient = numpy.array(numpy.unravel_index(shiftmatrix.argmax(), (matrixsize*2+1,matrixsize*2+1))) - [matrixsize,matrixsize]
-        if gradient[0] == 0 and gradient[1] == 0:
-            break
-        lens0 += gradient
-        # TODO: Reuse a portion of shiftmatrix?
+    lens0 = finetune_lens_position(image, maxu, rp, lens0)
     rp.lens0(lens0)
 
     return rp
@@ -200,6 +190,20 @@ def sample_rp_from_tiling(frame, tiling, maxu):
     print "###", rp
 
     return ((ul, br), rp)
+
+def finetune_lens_position(image, maxu, rp, lens0):
+    while True:
+        matrixsize = 2
+        shiftmatrix = numpy.array([[measure_rectification_one(image, maxu, rp, lens0 + [y, x])
+                                   for x in range(-matrixsize, matrixsize+1)]
+                                  for y in range(-matrixsize, matrixsize+1)])
+        print "shiftmatrix", shiftmatrix
+        gradient = numpy.array(numpy.unravel_index(shiftmatrix.argmax(), (matrixsize*2+1,matrixsize*2+1))) - [matrixsize,matrixsize]
+        if gradient[0] == 0 and gradient[1] == 0:
+            break
+        lens0 += gradient
+        # TODO: Reuse a portion of shiftmatrix?
+    return lens0
 
 
 class TileImage:
