@@ -363,19 +363,18 @@ def measure_rectification(image, tiling, maxu, rparams):
         t = tiling.random_tile()
         s = tiling.tile_to_lens(t, rparams)
         # print "tile ", t, "lens ", s
-        value += measure_rectification_one(image, maxu, rparams, s)
+        value += measure_rectification_one(image, maxu, rparams, rparams.xylens(s))
 
     return value / n_samples
 
 
-def measure_rectification_one(image, maxu, rparams, gridpos):
+def measure_rectification_one(image, maxu, rparams, lenspos):
     """
     Measure rectification of a single given lens.
     """
-    lenspos = rparams.xylens(gridpos)
     lenssize = rparams.size * maxu
 
-    # print "measuring ", gridpos, " (", lenspos, ") with ", rparams
+    print "measuring (", lenspos, " - ", lenssize, ") with ", rparams
 
     value_inlens = 0.
     value_outlens = 0.
