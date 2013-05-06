@@ -395,7 +395,7 @@ def measure_rectification_one(image, maxu, rparams, lenspos):
     """
     lenssize = rparams.size * maxu
 
-    print "measuring (", lenspos, " - ", lenssize, ") with ", rparams
+    # print "measuring (", lenspos, " - ", lenssize, ") with ", rparams
 
     value_inlens = 0.
     value_outlens = 0.
