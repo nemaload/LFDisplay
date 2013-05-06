@@ -201,11 +201,14 @@ def finetune_lens_position(image, maxu, rp, lens0):
         matrixsize = 2
         image[tuple(lens0)] # just poke it to raise IndexError when we get out of bounds
         shiftmatrix = numpy.array([[measure_rectification_one(image, maxu, rp, lens0 + [y, x])
-                                   for x in range(-matrixsize, matrixsize+1)]
-                                  for y in range(-matrixsize, matrixsize+1)])
-        print "shiftmatrix", shiftmatrix
+                                    for x in range(-matrixsize, matrixsize+1)]
+                                   for y in range(-matrixsize, matrixsize+1)])
         gradient = numpy.array(numpy.unravel_index(shiftmatrix.argmax(), (matrixsize*2+1,matrixsize*2+1))) - [matrixsize,matrixsize]
+        print "lens0", lens0, "shiftmatrix", shiftmatrix, "gradient", gradient
         if gradient[0] == 0 and gradient[1] == 0:
+            break
+        if shiftmatrix[tuple(gradient + [matrixsize,matrixsize])] <= shiftmatrix[matrixsize,matrixsize]:
+            # If best candidate is as good as staying put, stop
             break
         lens0 += gradient
         # TODO: Reuse a portion of shiftmatrix?
