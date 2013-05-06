@@ -106,6 +106,24 @@ def autorectify_cv(frame, maxu):
         return autorectify_cv(frame, maxu)
     rp.lens0(lens0)
 
+    # Incrementally look at and fine-tune more lens in four directions
+    delta = 2
+    dirs = numpy.array([[1,0], [-1,0], [0,1], [0,-1]])
+    while dirs.shape[0] > 0:
+        print "retuning delta", delta, "rp", rp
+        i = 0
+        while i < dirs.shape[0]:
+            try:
+                rp = refine_rp_by_lens_finetune(image, maxu, rp, delta * dirs[i])
+            except IndexError:
+                # Out of bounds in this direction, give up
+                dirs = numpy.delete(dirs, i, 0)
+                print "out of bounds, remaining directions", dirs
+            else:
+                i += 1
+        delta *= 2
+
+    print "final rp", rp
     return rp
 
 
@@ -213,6 +231,21 @@ def finetune_lens_position(image, maxu, rp, lens0):
         lens0 += gradient
         # TODO: Reuse a portion of shiftmatrix?
     return lens0
+
+def refine_rp_by_lens_finetune(image, maxu, rp, delta):
+    print "refine", delta
+    (lensletOffset, lensletHoriz, lensletVert) = rp.to_steps()
+    lens_before = rp.xylens(delta)
+    lens_after = finetune_lens_position(image, maxu, rp, lens_before.copy())
+    print "  before", lens_before, "after", lens_after
+    if delta[0] != 0:
+        print "  horiz", (lens_after - lens_before)
+        lensletHoriz += (lens_after - lens_before) / abs(delta[0])
+    if delta[1] != 0:
+        print "  vert", (lens_after - lens_before)
+        lensletVert += (lens_after - lens_before) / abs(delta[1])
+    rp.from_steps((lensletOffset, lensletHoriz, lensletVert))
+    return rp
 
 
 class TileImage:
