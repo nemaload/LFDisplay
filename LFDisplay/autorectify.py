@@ -63,7 +63,7 @@ def autorectify_cv(frame, maxu):
     tiling = ImageTiling(image, MAX_RADIUS * 5)
     tiling.scan_brightness()
 
-    n_samples = 6
+    n_samples = 16
     # colors = [ "lightsalmon", "lightgreen", "lightblue", "red", "green", "blue" ]
     tiles = range(n_samples)
     rps = range(n_samples)
