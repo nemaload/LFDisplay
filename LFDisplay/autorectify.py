@@ -445,6 +445,31 @@ class RectifyParams:
         lensletVert = self.xytilted([0, self.size[1]])
         return (lensletOffset.tolist(), lensletHoriz.tolist(), lensletVert.tolist())
 
+    def from_steps(self, steps):
+        """
+        Load parameters from a tuple of
+        (lensletOffset, lensletHoriz, lensletVert).
+        """
+        (lensletOffset, lensletHoriz, lensletVert) = steps
+        self.offset = numpy.array(lensletOffset) - self.framesize/2
+
+        tauH = math.atan2(lensletHoriz[1], lensletHoriz[0])
+        tauV = math.atan2(-lensletVert[0], lensletVert[1])
+        self.tau = numpy.average([tauH, tauV]) # typically, tauH == tauV
+        print "from_steps tau ", tauH, tauV, self.tau
+
+        size0 = lensletHoriz[0] / math.cos(tauH)
+        size1 = lensletVert[1] / math.cos(tauV)
+        self.size = numpy.array([size0, size1])
+        print "from_steps size ", self.size
+
+        # normalize() seems to do things with .offset that are not proper
+        #self.tau = self.tau % (math.pi/8)
+        self.normalize()
+
+        # Whew!
+        return self
+
     def to_array(self):
         """
         Convert parameters to an array of values to be opaque
@@ -468,6 +493,27 @@ class RectifyParams:
 
     def __str__(self):
         return "[size " + str(self.size) + " offset " + str(self.offset) + " tau " + str(self.tau * 180 / math.pi) + "deg]"
+
+    @staticmethod
+    def median(array):
+        """
+        From an array of RectifyParams[] objects, construct median parameters.
+        """
+
+        size0 = numpy.array([array[i].size[0] for i in range(len(array))])
+        size0.sort()
+        size1 = numpy.array([array[i].size[1] for i in range(len(array))])
+        size1.sort()
+        offset = sorted([array[i].offset for i in range(len(array))], key = lambda o: o[0]**2 + o[1]**2)
+        tau = numpy.array([array[i].tau for i in range(len(array))])
+        tau.sort()
+
+        rpmedian = RectifyParams(array[0].framesize)
+        rpmedian.size = numpy.array([size0[len(size0)/2], size1[len(size1)/2]])
+        rpmedian.offset = offset[len(offset)/2]
+        rpmedian.tau = tau[len(tau)/2]
+        print "median:", rpmedian
+        return rpmedian
 
 
 class ImageTiling:
