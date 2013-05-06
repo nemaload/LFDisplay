@@ -135,6 +135,20 @@ def autorectify_cv(frame, maxu):
         imgplot = plt.imshow(punched, cmap=plt.cm.gray)
         plt.show()
 
+        # Convert lens matrix to RectifyParams
+        lens0 = lensmatrix[0,0] + ul
+        rp = RectifyParams([frame.width, frame.height])
+        lensletOffset = tuple(swapxy(lens0))
+        lensletHoriz = tuple(swapxy(numpy.average([lensmatrix[0,1] - lensmatrix[0,0],
+                                                   lensmatrix[1,1] - lensmatrix[1,0]], 0)))
+        lensletVert = tuple(swapxy(numpy.average([lensmatrix[1,0] - lensmatrix[0,0],
+                                                  lensmatrix[1,1] - lensmatrix[0,1]], 0)))
+        print "o", lensletOffset, "h", lensletHoriz, "v", lensletVert
+        rp.from_steps((lensletOffset, lensletHoriz, lensletVert))
+        print "###", rp
+
+        rps[i] = rp
+
        except IndexError:
         # IndexError can be thrown in case one of the areas reaches
         # to one edge of the tile; try with another tile
@@ -142,16 +156,6 @@ def autorectify_cv(frame, maxu):
         continue
 
        else:
-        # Convert lens matrix to RectifyParams
-        rp = RectifyParams([frame.width, frame.height])
-        lensletOffset = tuple(swapxy(lensmatrix[0,0] + ul))
-        lensletHoriz = tuple(swapxy(numpy.average([lensmatrix[0,1] - lensmatrix[0,0],
-                                                   lensmatrix[1,1] - lensmatrix[1,0]], 0)))
-        lensletVert = tuple(swapxy(numpy.average([lensmatrix[1,0] - lensmatrix[0,0],
-                                                  lensmatrix[1,1] - lensmatrix[0,1]], 0)))
-        print "o", lensletOffset, "h", lensletHoriz, "v", lensletVert
-        rps[i] = rp.from_steps((lensletOffset, lensletHoriz, lensletVert))
-        print "###", rps[i]
         break
 
     # Show window with whole image, tile parts highlighted
