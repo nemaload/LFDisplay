@@ -218,21 +218,37 @@ def sample_rp_from_tiling(frame, tiling, maxu):
     return ((ul, br), rp)
 
 def finetune_lens_position(image, maxu, rp, lens0):
+    matrixsize = 2
+    matrixshape = numpy.array([matrixsize*2+1, matrixsize*2+1])
+    matrixcenter = numpy.array([matrixsize, matrixsize])
+
+    shiftmatrix = numpy.zeros(tuple(matrixshape))
+    gradient = numpy.array([1000, 1000])
+
     while True:
-        matrixsize = 2
         image[tuple(lens0)] # just poke it to raise IndexError when we get out of bounds
-        shiftmatrix = numpy.array([[measure_rectification_one(image, maxu, rp, lens0 + [y, x])
-                                    for x in range(-matrixsize, matrixsize+1)]
-                                   for y in range(-matrixsize, matrixsize+1)])
-        gradient = numpy.array(numpy.unravel_index(shiftmatrix.argmax(), (matrixsize*2+1,matrixsize*2+1))) - [matrixsize,matrixsize]
+
+        shiftmatrix2 = numpy.zeros(tuple(matrixshape))
+        for y in range(-matrixsize, matrixsize+1):
+            for x in range(-matrixsize, matrixsize+1):
+                c2 = matrixcenter + [y, x]
+                c1 = c2 + gradient
+                if (c1 < [0,0]).any() or (c1 >= matrixshape).any():
+                    shiftmatrix2[tuple(c2)] = measure_rectification_one(image, maxu, rp, lens0 + [y, x])
+                else:
+                    shiftmatrix2[tuple(c2)] = shiftmatrix[tuple(c1)]
+        shiftmatrix = shiftmatrix2
+
+        gradient = numpy.array(numpy.unravel_index(shiftmatrix.argmax(), tuple(matrixshape))) - matrixcenter
         print "lens0", lens0, "shiftmatrix", shiftmatrix, "gradient", gradient
+
         if gradient[0] == 0 and gradient[1] == 0:
             break
-        if shiftmatrix[tuple(gradient + [matrixsize,matrixsize])] <= shiftmatrix[matrixsize,matrixsize]:
+        if shiftmatrix[tuple(matrixcenter + gradient)] <= shiftmatrix[tuple(matrixcenter)]:
             # If best candidate is as good as staying put, stop
             break
         lens0 += gradient
-        # TODO: Reuse a portion of shiftmatrix?
+
     return lens0
 
 def refine_rp_by_lens_finetune(image, maxu, rp, delta):
