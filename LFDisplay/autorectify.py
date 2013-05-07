@@ -33,6 +33,7 @@ Approach 2: differential evolution (TODO)
 import math
 import numpy
 import random
+import time
 
 import cv
 import cv2
@@ -50,7 +51,9 @@ def autorectify(frame, maxu):
     a tuple of (lensletOffset, lensletHoriz, lensletVert).
     """
     # solution = autorectify_de(frame, maxu)
+    start_t = time.asctime()
     solution = autorectify_cv(frame, maxu)
+    print "start", start_t, "end", time.asctime()
     return solution.to_steps()
 
 
