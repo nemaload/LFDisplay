@@ -240,10 +240,10 @@ def refine_rp_by_lens_finetune(image, maxu, rp, delta):
     print "  before", lens_before, "after", lens_after
     if delta[0] != 0:
         print "  horiz", (lens_after - lens_before)
-        lensletHoriz += (lens_after - lens_before) / abs(delta[0])
+        lensletHoriz += (lens_after - lens_before) / delta[0]
     if delta[1] != 0:
         print "  vert", (lens_after - lens_before)
-        lensletVert += (lens_after - lens_before) / abs(delta[1])
+        lensletVert += (lens_after - lens_before) / delta[1]
     rp.from_steps((lensletOffset, lensletHoriz, lensletVert))
     return rp
 
