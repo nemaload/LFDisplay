@@ -226,7 +226,8 @@ def finetune_lens_position(image, maxu, rp, lens0):
     gradient = numpy.array([1000, 1000])
 
     while True:
-        image[tuple(lens0)] # just poke it to raise IndexError when we get out of bounds
+        if lens0[0] < 0 or lens0[1] < 0 or lens0[0] >= image.shape[0] or lens0[1] >= image.shape[1]:
+            raise IndexError
 
         shiftmatrix2 = numpy.zeros(tuple(matrixshape))
         for y in range(-matrixsize, matrixsize+1):
